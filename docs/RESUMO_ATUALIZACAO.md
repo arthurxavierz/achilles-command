@@ -1,68 +1,48 @@
-# Resumo da atualização 02/08/2026
+# Resumo da atualização 03/08/2026
 
-## Implementado
+## Captação comercial
 
-### Prospecção
+- motor principal alterado de OpenStreetMap/Overpass para Google Places API (New);
+- busca por segmento, cidade, UF, raio e até 60 resultados por consulta;
+- telefone, site, endereço, avaliação e volume de avaliações quando publicados;
+- score geral Achilles e scores separados para Site, Posicionamento Digital e Automação/IA;
+- indicação automática do melhor encaixe comercial;
+- enriquecimento adicional pelo site público da empresa;
+- editor de abordagem e geração com Claude continuam preparados;
+- abertura manual do WhatsApp continua sendo o padrão;
+- tratamento melhorado quando uma Function retorna HTML ou erro de configuração.
 
-- nova rota **Prospecção** no Achilles Command;
-- pesquisa por segmento e cidade;
-- integração assíncrona com `gosom/google-maps-scraper` via Docker;
-- ponte Python local protegida por segredo;
-- proxy Netlify para manter a ponte privada;
-- mapa Leaflet/OpenStreetMap;
-- score de oportunidade por regras, sem IA;
-- deduplicação básica;
-- exportação CSV;
-- geração de abordagem pelo Claude com fallback local;
-- editor da mensagem antes do contato;
-- abertura manual no WhatsApp;
-- importação do prospect para o CRM;
-- persistência de buscas e prospects no Supabase.
+## Supabase
 
-### Claude / IA
-
-- proxy server-side com chave fora do frontend;
-- prompts separados para assistente, abordagem, resposta de atendimento e chat público;
-- Achilles Assistant recebe contexto de prospects, leads, atendimentos, campanhas, propostas, projetos, tarefas e serviços;
-- tela Conversas ganhou **Sugerir com IA**, sempre para revisão humana;
-- chat público pode usar uma única chamada opcional no encerramento (`publicChatAI`).
-
-### Chat público
-
-- nova Function `public-lead.mjs` para gravar leads no Supabase com a service role protegida no Netlify;
-- deduplicação simples por telefone;
-- fallback local continua preservando o contato se uma integração falhar.
-
-### Supabase
-
-- tabelas `prospecting_runs` e `prospects`;
-- RLS, índices e trigger de atualização;
-- migration separada para quem já possuía banco;
-- configurações do painel passam a sincronizar `app_settings` quando o Supabase estiver ativo.
-
-### WhatsApp
-
-- permanece manual na versão atual;
-- números brasileiros sem DDI recebem `55` ao abrir `wa.me`;
-- banco/arquitetura já preservam o caminho para `whatsapp_cloud` no futuro;
-- tutorial documenta a evolução sem exigir configuração da Meta agora.
-
-## Arquivos principais novos
+Para banco que já estava configurado, execute apenas:
 
 ```text
-netlify/functions/scraper-proxy.mjs
-netlify/functions/public-lead.mjs
-scraper/server.py
-scraper/start.bat
-scraper/start.ps1
-scraper/.env.example
-supabase/migrations/2026-08-02_prospeccao.sql
-docs/GUIA_DE_USO.md
-docs/TERCEIROS.md
+supabase/migration_2026_08_03_google_places.sql
 ```
 
-## Primeiro arquivo a abrir
+Não é necessário recriar o banco.
+
+## Netlify
+
+Nova variável obrigatória para a captação:
 
 ```text
-docs/GUIA_IMPLEMENTACAO.md
+GOOGLE_PLACES_API_KEY
 ```
+
+A chave deve ficar somente no Netlify e nunca no `config.js`.
+
+## Preservado nesta atualização
+
+- `config.js` atual;
+- `.gitignore` atual;
+- `supabase/seed.sql` atual;
+- histórico `.git` do projeto;
+- Supabase já configurado;
+- CRM, propostas, projetos, conversas e demais módulos existentes.
+
+## Próximas etapas
+
+1. configurar e validar Google Places;
+2. configurar Claude API;
+3. manter WhatsApp manual inicialmente e ativar Cloud API apenas se necessário.

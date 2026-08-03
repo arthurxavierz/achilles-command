@@ -24,3 +24,5 @@ begin
     ('auto_5',org,'Relatório gerencial','Consolida indicadores e pontos de atenção.',false,0,100,'Nunca','weekly-report')
   on conflict (id) do nothing;
 end $$;
+
+-- id organization 4f2a2655-6f56-42cc-8dc7-8675dadfdfa2

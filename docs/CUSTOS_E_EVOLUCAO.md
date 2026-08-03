@@ -4,42 +4,44 @@
 
 | Componente | Como fica agora | Custo incremental esperado |
 |---|---|---:|
-| Captação de empresas | Function nativa + dados públicos OSM/Overpass | R$ 0 |
+| Captação | Google Places API (New) via Netlify Function | R$ 0 enquanto dentro da franquia |
 | Score | Regras do Achilles Command | R$ 0 |
-| Mapa | OpenStreetMap + Leaflet | R$ 0 para o volume inicial |
+| Mapa visual | OpenStreetMap + Leaflet | R$ 0 para o volume inicial |
 | CRM e banco | Supabase Free, enquanto couber na franquia | R$ 0 |
 | Frontend/Functions | Netlify Free, enquanto couber na franquia | R$ 0 |
-| WhatsApp de prospecção | Abertura manual com mensagem preenchida | R$ 0 |
+| WhatsApp de prospecção | Abertura manual | R$ 0 |
 | Claude | Somente se ativado | variável por tokens |
 | WhatsApp Cloud API | Desativada | R$ 0 |
 
-## Onde aparece custo de IA
+## Google Places
 
-A busca, o mapa, o score, o CSV e o CRM não chamam Claude.
+A busca pede telefone, site, rating e quantidade de avaliações. Esses campos levam a consulta ao tier **Text Search Enterprise**.
 
-Claude é chamado apenas quando você pede algo como:
+Na tabela vigente em agosto de 2026, o tier possui franquia de **1.000 requisições/mês**.
 
-1. gerar uma abordagem personalizada;
-2. sugerir uma resposta numa conversa;
-3. consultar o Achilles Assistant.
+A API retorna até 20 lugares por página e até 60 resultados no total por consulta textual:
 
-Como referência, o Haiku é apropriado para essas tarefas de baixo custo. O gasto real depende do tamanho do contexto e da quantidade de chamadas. Para algumas dezenas de abordagens por dia, o custo tende a ser pequeno, mas acompanhe o painel de uso da Anthropic.
+```text
+20 resultados -> até 1 chamada
+30 resultados -> até 2 chamadas
+50/60 resultados -> até 3 chamadas
+```
+
+O faturamento precisa estar ativado no Google Cloud mesmo que o uso permaneça na franquia gratuita. Configure orçamento e alertas.
+
+## Claude
+
+Google Places, mapa, score, CSV e CRM não chamam Claude. A API da Anthropic só é usada quando você pede geração/sugestão de texto ou usa o Achilles Assistant.
 
 ## WhatsApp
 
-Para cerca de 30 abordagens manuais por dia, a primeira versão não precisa da Cloud API. A API passa a fazer sentido quando você quiser que o Command envie/receba mensagens sozinho, receba webhooks e permita que o Claude participe do atendimento automaticamente.
+Para cerca de 30 abordagens manuais por dia, Cloud API não é necessária. Ela passa a fazer sentido para envio/recebimento automático, webhooks e atendimento com IA.
 
-## Limites da captação gratuita
+## Referências
 
-A fonte gratuita atual não é o banco do Google Maps. A cobertura do OpenStreetMap varia por cidade. Por isso o Command inclui link de verificação no Google Maps e enriquecimento do site público.
-
-Se um dia a Achilles precisar de cobertura comercial equivalente à do Google Maps em grande escala, a arquitetura permite trocar apenas o provider da Function por Google Places, outro provedor ou uma infraestrutura de navegador. O restante do Command não precisa ser refeito.
-
-## Fontes oficiais para conferir preços e políticas
-
+- Google Places Text Search: https://developers.google.com/maps/documentation/places/web-service/text-search
+- Google Maps pricing: https://developers.google.com/maps/billing-and-pricing/pricing
 - Anthropic: https://www.anthropic.com/pricing
 - Supabase: https://supabase.com/pricing
 - Netlify: https://www.netlify.com/pricing/
 - WhatsApp Business Platform: https://developers.facebook.com/docs/whatsapp/
-- OpenStreetMap: https://www.openstreetmap.org/
-- Nominatim policy: https://operations.osmfoundation.org/policies/nominatim/
