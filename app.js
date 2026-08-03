@@ -153,7 +153,7 @@
     data: loadData(),
     modal: null,
     assistantMessages: [],
-    prospecting: { results: [], origin: null, query: "", city: "", state: "MG", radiusKm: 20, limit: 30, loading: false, view: "split" }
+    prospecting: { results: [], origin: null, query: "", city: "", state: "MG", radiusKm: 20, limit: 30, loading: false, view: "split", filters: { contact: [], fit: [] } }
   };
 
   let supabaseClient = null;
@@ -230,7 +230,8 @@
       sourceId: "source_id", distanceKm: "distance_km", mapUrl: "map_url", googleUrl: "google_url",
       scoreBand: "score_band", scoreReasons: "score_reasons", lastEnrichedAt: "last_enriched_at", crmLeadId: "crm_lead_id",
       siteScore: "site_score", digitalScore: "digital_score", automationScore: "automation_score", recommendedService: "recommended_service",
-      userRatingCount: "user_rating_count", businessStatus: "business_status", projectId: "project_id"
+      userRatingCount: "user_rating_count", businessStatus: "business_status", projectId: "project_id",
+      approachMessage: "approach_message", approachNote: "approach_note"
     };
     for (const [from, to] of Object.entries(mappings)) {
       if (Object.prototype.hasOwnProperty.call(copy, from)) { copy[to] = copy[from]; delete copy[from]; }
@@ -241,7 +242,7 @@
     // pela interface, mas eles não devem virar colunas acidentais no banco.
     const allowed = {
       leads:['id','organization_id','company','contact','phone','email','service','source','stage','score','value','last_contact','next_action','notes','created_at'],
-      prospects:['id','organization_id','source','source_id','name','category','address','phone','whatsapp','email','website','instagram','facebook','latitude','longitude','distance_km','map_url','google_url','rating','user_rating_count','business_status','score','score_band','score_reasons','site_score','digital_score','automation_score','recommended_service','crm_lead_id','last_enriched_at','created_at'],
+      prospects:['id','organization_id','source','source_id','name','category','address','phone','whatsapp','email','website','instagram','facebook','latitude','longitude','distance_km','map_url','google_url','rating','user_rating_count','business_status','score','score_band','score_reasons','site_score','digital_score','automation_score','recommended_service','approach_message','approach_note','crm_lead_id','last_enriched_at','created_at'],
       conversations:['id','organization_id','lead_id','name','company','phone','status','unread','last_at','summary','messages','created_at'],
       campaigns:['id','organization_id','name','status','audience','message','total','sent','replies','created_at'],
       projects:['id','organization_id','client','name','status','progress','due','value','description','created_at'],
@@ -276,6 +277,8 @@
     if (row.recommended_service && !copy.recommendedService) copy.recommendedService = row.recommended_service;
     if (row.user_rating_count != null && copy.userRatingCount == null) copy.userRatingCount = row.user_rating_count;
     if (row.business_status && !copy.businessStatus) copy.businessStatus = row.business_status;
+    if (row.approach_message && !copy.approachMessage) copy.approachMessage = row.approach_message;
+    if (row.approach_note && !copy.approachNote) copy.approachNote = row.approach_note;
     if (row.last_enriched_at && !row.lastEnrichedAt) copy.lastEnrichedAt = row.last_enriched_at;
     if (row.crm_lead_id && !row.crmLeadId) copy.crmLeadId = row.crm_lead_id;
     return copy;
@@ -490,9 +493,10 @@
 
   function prospectingPage() {
     const p = state.prospecting;
-    const results = p.results || [];
-    const high = results.filter(x => Number(x.score||0) >= 75).length;
-    const contactable = results.filter(x => x.phone || x.whatsapp || x.email).length;
+    const all = p.results || [];
+    const results = visibleProspects();
+    const high = all.filter(x => Number(x.score||0) >= 75).length;
+    const contactable = all.filter(x => whatsappDigits(x)).length;
     return `<div class="prospecting-layout">
       <section class="card prospect-search-panel">
         <div class="card-head"><div><h3 class="card-title">Caça-cliente Achilles</h3><p class="card-subtitle">Busque empresas locais, priorize oportunidades e prepare abordagens sem sair do Command.</p></div><span class="tag gold">Google Places</span></div>
@@ -507,17 +511,20 @@
         <div class="prospect-help">Sem Docker. A busca usa Google Places pelo backend do Achilles Command; telefone, site, avaliações e score chegam organizados para prospecção.</div>
       </section>
       ${p.loading ? `<div class="card prospect-loading"><span class="spinner"></span><strong>Buscando empresas e organizando oportunidades...</strong><span>Consultando estabelecimentos e sinais comerciais do Google Places.</span></div>` : ''}
-      ${results.length ? `<div class="grid grid-3 prospect-metrics">${metric('target','Encontrados',results.length,'Busca atual','Empresas localizadas')}${metric('trend','Alta oportunidade',high,'Score ≥ 75','Prioridade Achilles')}${metric('phone','Com contato',contactable,'Disponíveis','Telefone, WhatsApp ou e-mail')}</div>
-      <div class="toolbar prospect-toolbar"><div class="toolbar-left"><strong>${escapeHtml(p.query)} em ${escapeHtml(p.city)}${p.state?`, ${escapeHtml(p.state)}`:''}</strong><span class="text-muted">Ordenado por oportunidade</span></div><div class="toolbar-right"><button class="btn btn-secondary btn-sm" data-action="export-prospects">${icon('download')} CSV</button><button class="btn btn-secondary btn-sm" data-action="toggle-prospect-view">${icon('map')} ${p.view==='list'?'Mostrar mapa':'Ocultar mapa'}</button></div></div>
-      <div class="prospect-results ${p.view==='list'?'list-only':''}">
+      ${all.length ? `<div class="grid grid-3 prospect-metrics">${metric('target','Encontrados',all.length,'Busca atual','Empresas localizadas')}${metric('trend','Alta oportunidade',high,'Score ≥ 75','Prioridade Achilles')}${metric('phone','No WhatsApp',contactable,'Abordagem direta','Celular publicado no Google')}</div>
+      ${prospectFilterBar(all)}
+      <div class="toolbar prospect-toolbar"><div class="toolbar-left"><strong>${escapeHtml(p.query)} em ${escapeHtml(p.city)}${p.state?`, ${escapeHtml(p.state)}`:''}</strong><span class="text-muted">${results.length===all.length?'Ordenado por oportunidade e contato':`${results.length} de ${all.length} após os filtros`}</span></div><div class="toolbar-right"><button class="btn btn-secondary btn-sm" data-action="export-prospects">${icon('download')} CSV</button><button class="btn btn-secondary btn-sm" data-action="toggle-prospect-view">${icon('map')} ${p.view==='list'?'Mostrar mapa':'Ocultar mapa'}</button></div></div>
+      ${results.length ? `<div class="prospect-results ${p.view==='list'?'list-only':''}">
         <section class="prospect-list">${results.map(prospectCard).join('')}</section>
         ${p.view==='list'?'':`<aside class="card prospect-map-wrap"><div id="prospect-map" class="prospect-map"></div><div class="prospect-map-note">Mapa de apoio: OpenStreetMap · dados comerciais: Google Places</div></aside>`}
-      </div>` : (!p.loading && p.query ? `<div class="empty-state card">${icon('target',34)}<h3>Nenhum resultado nessa busca</h3><p>Tente aumentar o raio ou usar um segmento mais amplo, como “clínicas” em vez de uma especialidade muito específica.</p></div>` : `<div class="empty-state card">${icon('target',34)}<h3>Comece por um segmento e uma cidade</h3><p>Exemplo: “clínicas” em “Uberaba”. Os resultados já chegam com contato disponível, score e atalhos de abordagem.</p></div>`)}
+      </div>` : `<div class="empty-state card">${icon('filter',34)}<h3>Nenhuma empresa passa nos filtros atuais</h3><p>A busca trouxe ${all.length} ${all.length===1?'empresa':'empresas'}, mas os filtros de contato e encaixe deixaram a lista vazia. Remova um filtro para voltar a ver os resultados.</p><button class="btn btn-secondary btn-sm" data-action="clear-prospect-filters" style="margin-top:16px">${icon('close',13)} Limpar filtros</button></div>`}`
+      : (!p.loading && p.query ? `<div class="empty-state card">${icon('target',34)}<h3>Nenhum resultado nessa busca</h3><p>Tente aumentar o raio ou usar um segmento mais amplo, como “clínicas” em vez de uma especialidade muito específica.</p></div>` : `<div class="empty-state card">${icon('target',34)}<h3>Comece por um segmento e uma cidade</h3><p>Exemplo: “clínicas” em “Uberaba”. Os resultados já chegam com contato disponível, score e atalhos de abordagem.</p></div>`)}
     </div>`;
   }
 
   function prospectCard(p) {
-    const contact = p.whatsapp || p.phone || p.email || 'Contato não publicado';
+    const wa = whatsappDigits(p);
+    const contact = p.phone || p.whatsapp || p.email || 'Contato não publicado';
     const scoreClass = p.score >= 75 ? 'gold' : p.score >= 55 ? 'warning' : '';
     const saved = p.crmLeadId || state.data.leads.some(l => String(l.company).toLowerCase() === String(p.name).toLowerCase());
     const rating = Number(p.rating || 0);
@@ -532,6 +539,7 @@
       <div class="prospect-address">${escapeHtml(p.address || 'Endereço não informado')}</div>
       <div class="prospect-signals">
         <span class="tag ${p.phone||p.whatsapp?'info':''}">${icon('phone',12)} ${escapeHtml(contact)}</span>
+        ${wa?`<span class="tag whatsapp">${icon('message',12)} WhatsApp</span>`:''}
         <span class="tag ${!p.website?'gold':''}">${p.website?'Site encontrado':'Sem site identificado'}</span>
         ${rating?`<span class="tag">★ ${rating.toFixed(1)} · ${reviews.toLocaleString('pt-BR')} avaliações</span>`:''}
         <span class="tag ${scoreClass}">${escapeHtml(p.band || p.scoreBand || 'Oportunidade')}</span>
@@ -542,7 +550,8 @@
       <div class="prospect-actions">
         ${p.website?`<button class="btn btn-ghost btn-sm" data-action="enrich-prospect" data-prospect="${p.id}">${icon('refresh')} Enriquecer</button>`:''}
         <button class="btn btn-secondary btn-sm" data-action="prospect-approach" data-prospect="${p.id}">${icon('edit')} Abordagem</button>
-        <button class="btn ${saved?'btn-secondary':'btn-primary'} btn-sm" data-action="prospect-crm" data-prospect="${p.id}" ${saved?'disabled':''}>${saved?icon('check'):icon('plus')} ${saved?'No CRM':'Adicionar ao CRM'}</button>
+        <button class="btn ${saved||wa?'btn-secondary':'btn-primary'} btn-sm" data-action="prospect-crm" data-prospect="${p.id}" ${saved?'disabled':''}>${saved?icon('check'):icon('plus')} ${saved?'No CRM':'Adicionar ao CRM'}</button>
+        ${wa?`<button class="btn btn-primary btn-sm" data-action="prospect-whatsapp" data-prospect="${p.id}" title="${escapeHtml(p.approachMessage?'Abre com a mensagem que você salvou':'Abre com a abordagem padrão do melhor encaixe')}">${icon('send')} WhatsApp</button>`:''}
       </div>
     </article>`;
   }
@@ -559,12 +568,129 @@
     return network==='instagram' ? `https://instagram.com/${handle}` : '';
   }
 
+  /* --- contato do prospect -------------------------------------------------
+     O Google Places devolve fixo e celular no mesmo campo. No Brasil só o
+     celular abre conversa no WhatsApp: 9 dígitos começando com 9 depois do
+     DDD. Um link wa.me achado no enriquecimento sempre tem prioridade. */
+  function brDigits(value) {
+    let d=String(value||'').replace(/\D/g,'');
+    if(d.startsWith('00')) d=d.slice(2);
+    if(d.length===10 || d.length===11) d=`55${d}`;
+    return (d.length===12 || d.length===13) ? d : '';
+  }
+
+  function whatsappDigits(p={}) {
+    const explicit=brDigits(p.whatsapp);
+    if(explicit) return explicit;
+    const phone=brDigits(p.phone);
+    const local=phone.slice(2);
+    return (local.length===11 && local[2]==='9') ? phone : '';
+  }
+
+  // Usado como critério de desempate: score empatado é comum, contato não.
+  function contactRank(p={}) {
+    if(whatsappDigits(p)) return 3;
+    if(p.phone) return 2;
+    if(p.email) return 1;
+    return 0;
+  }
+
+  const CONTACT_FILTERS=[['whatsapp','WhatsApp'],['phone','Telefone'],['email','E-mail']];
+  const FIT_FILTERS=[['Site','Site'],['Posicionamento digital','Posicionamento digital'],['Automação / IA','Automação / IA']];
+
+  function hasContactChannel(p, channel) {
+    if(channel==='whatsapp') return !!whatsappDigits(p);
+    if(channel==='phone') return !!p.phone;
+    return !!p.email;
+  }
+
+  function matchesProspectFilters(p) {
+    const f=state.prospecting.filters||{contact:[],fit:[]};
+    if(f.contact?.length && !f.contact.some(c=>hasContactChannel(p,c))) return false;
+    if(f.fit?.length && !f.fit.includes(p.recommendedService||'')) return false;
+    return true;
+  }
+
+  /* Ordem comercial: oportunidade primeiro, contato como desempate — um score
+     alto sem telefone vale menos na prática do que um contatável no WhatsApp. */
+  function visibleProspects() {
+    return (state.prospecting.results||[])
+      .filter(matchesProspectFilters)
+      .sort((a,b)=>
+        Number(b.score||0)-Number(a.score||0)
+        || contactRank(b)-contactRank(a)
+        || Number(b.userRatingCount||0)-Number(a.userRatingCount||0)
+        || String(a.name||'').localeCompare(String(b.name||''),'pt-BR'));
+  }
+
+  function toggleProspectFilter(group, value) {
+    const f=state.prospecting.filters;
+    if(!Array.isArray(f[group])) f[group]=[];
+    const i=f[group].indexOf(value);
+    if(i>=0) f[group].splice(i,1); else f[group].push(value);
+    renderCurrentPage();
+  }
+
+  function prospectFiltersActive() {
+    const f=state.prospecting.filters||{};
+    return Number(f.contact?.length||0)+Number(f.fit?.length||0);
+  }
+
+  function prospectFilterBar(all) {
+    const f=state.prospecting.filters||{contact:[],fit:[]};
+    const chip=(group,value,label,count)=>`<button type="button" class="filter-chip ${f[group]?.includes(value)?'active':''}" data-filter-group="${group}" data-filter-value="${escapeHtml(value)}" aria-pressed="${f[group]?.includes(value)?'true':'false'}">${escapeHtml(label)}<em>${count}</em></button>`;
+    return `<div class="prospect-filters">
+      <div class="filter-group"><span class="filter-label">Contato</span>${CONTACT_FILTERS.map(([value,label])=>chip('contact',value,label,all.filter(p=>hasContactChannel(p,value)).length)).join('')}</div>
+      <div class="filter-group"><span class="filter-label">Melhor encaixe</span>${FIT_FILTERS.map(([value,label])=>chip('fit',value,label,all.filter(p=>p.recommendedService===value).length)).join('')}</div>
+      ${prospectFiltersActive()?`<button type="button" class="filter-clear" data-action="clear-prospect-filters">${icon('close',13)} Limpar filtros</button>`:''}
+    </div>`;
+  }
+
+  function defaultApproach(p={}) {
+    const angle = p.recommendedService==='Site' && !p.website
+      ? 'Vi a presença de vocês no Google e não encontrei um site próprio. Acredito que exista uma oportunidade interessante de transformar essa procura em uma presença digital mais completa.'
+      : p.recommendedService==='Automação / IA'
+        ? 'Acredito que o perfil da operação de vocês pode ter espaço para automatizar etapas de atendimento e relacionamento com clientes.'
+        : 'Vi a presença de vocês no Google e acredito que exista espaço para fortalecer ainda mais o posicionamento digital da empresa.';
+    return `Olá! Tudo bem? ${angle} Trabalho na Achilles Media. Posso te mostrar a ideia de forma bem objetiva?`;
+  }
+
+  // A mensagem editada no modal vira a mensagem oficial daquele prospect.
+  const approachText = p => String(p?.approachMessage||'').trim() || defaultApproach(p);
+
+  function findProspect(id) {
+    return state.prospecting.results.find(x=>x.id===id) || state.data.prospects.find(x=>x.id===id) || null;
+  }
+
+  function saveApproachDraft(id) {
+    const p=findProspect(id); if(!p) return null;
+    const text=document.getElementById('prospect-approach-text')?.value;
+    const note=document.getElementById('prospect-approach-note')?.value;
+    if(text!=null) p.approachMessage=String(text).trim();
+    if(note!=null) p.approachNote=String(note).trim();
+    upsertProspect(p);
+    return p;
+  }
+
+  function openProspectWhatsApp(id, text) {
+    const p=findProspect(id); if(!p) return;
+    const number=whatsappDigits(p);
+    if(!number){ toast('Sem WhatsApp identificado','O número publicado no Google é fixo. Use Enriquecer ou complete o contato no CRM.'); return; }
+    // Sem texto explícito (botão do card) usamos a mensagem salva ou a padrão.
+    // Quem salva é saveApproachDraft, para o padrão não congelar no prospect.
+    const message=String(text??approachText(p));
+    logActivity('Abordagem aberta',`WhatsApp de ${p.name} aberto pela captação.`);
+    saveData(); // openWhatsApp relê o armazenamento quando há lead no CRM
+    openWhatsApp(number,message,p.crmLeadId||null);
+  }
+
   async function searchProspects(form) {
     const fd=new FormData(form);
     Object.assign(state.prospecting,{query:String(fd.get('query')||'').trim(),city:String(fd.get('city')||'').trim(),state:String(fd.get('state')||'').trim().toUpperCase(),radiusKm:Number(fd.get('radiusKm')||20),limit:Number(fd.get('limit')||30),loading:true});
     renderCurrentPage();
     try {
-      const response=await fetch(CFG.prospectingUrl||'/.netlify/functions/prospect-search',{method:'POST',headers:await internalApiHeaders(),body:JSON.stringify(state.prospecting)});
+      const {query,city,state:uf,radiusKm,limit}=state.prospecting;
+      const response=await fetch(CFG.prospectingUrl||'/.netlify/functions/prospect-search',{method:'POST',headers:await internalApiHeaders(),body:JSON.stringify({query,city,state:uf,radiusKm,limit})});
       const raw=await response.text(); let data={};
       try{ data=raw?JSON.parse(raw):{}; }catch{ throw new Error('A busca não retornou JSON. Confirme se as Netlify Functions estão no deploy mais recente.'); }
       if(!response.ok) throw new Error(data.error||'Falha ao buscar empresas');
@@ -577,12 +703,13 @@
 
   function renderProspectMap() {
     const el=document.getElementById('prospect-map');
-    if(!el || !window.L || !state.prospecting.results.length) return;
-    const o=state.prospecting.origin || {lat:state.prospecting.results[0].latitude,lon:state.prospecting.results[0].longitude};
+    const visible=visibleProspects();
+    if(!el || !window.L || !visible.length) return;
+    const o=state.prospecting.origin || {lat:visible[0].latitude,lon:visible[0].longitude};
     const map=L.map(el,{zoomControl:true,attributionControl:true}).setView([o.lat,o.lon],12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
     const bounds=[];
-    state.prospecting.results.forEach(p=>{
+    visible.forEach(p=>{
       if(!Number.isFinite(Number(p.latitude))||!Number.isFinite(Number(p.longitude))) return;
       bounds.push([p.latitude,p.longitude]);
       L.circleMarker([p.latitude,p.longitude],{radius:7,weight:2,fillOpacity:.8}).addTo(map).bindPopup(`<strong>${escapeHtml(p.name)}</strong><br>${escapeHtml(p.category||'')}<br>Score ${p.score}`);
@@ -642,20 +769,40 @@
     state.data.leads.unshift(lead); p.crmLeadId=lead.id; upsertProspect(p); logActivity('Prospect adicionado ao CRM',`${p.name} entrou com score ${p.score}.`); saveData(); syncRecord('leads',lead); toast('Adicionado ao CRM',`${p.name} agora está no pipeline.`); renderCurrentPage();
   }
 
-  async function generateProspectApproach(id) {
-    const p=state.prospecting.results.find(x=>x.id===id) || state.data.prospects.find(x=>x.id===id); if(!p)return '';
-    const angle=p.recommendedService==='Site'&&!p.website?'Vi a presença de vocês no Google e não encontrei um site próprio. Acredito que exista uma oportunidade interessante de transformar essa procura em uma presença digital mais completa.':p.recommendedService==='Automação / IA'?'Acredito que o perfil da operação de vocês pode ter espaço para automatizar etapas de atendimento e relacionamento com clientes.':'Vi a presença de vocês no Google e acredito que exista espaço para fortalecer ainda mais o posicionamento digital da empresa.'; const base=`Olá! Tudo bem? ${angle} Trabalho na Achilles Media. Posso te mostrar a ideia de forma bem objetiva?`;
+  /* Gera a abordagem com o Claude. A observação é escrita por você no modal e
+     entra como instrução extra — é o que diferencia a mensagem do texto padrão.
+     Quando a IA não está configurada, devolvemos o texto base e avisamos, em
+     vez de fingir que a mensagem veio do Claude. */
+  async function generateProspectApproach(id, note='') {
+    const p=findProspect(id); if(!p) return {text:'',generated:false,error:'Prospect não encontrado.'};
+    const base=defaultApproach(p);
+    const observation=String(note||'').trim();
+    const instructions=[
+      'Escreva uma primeira abordagem curta para WhatsApp, em português do Brasil, com no máximo 3 frases.',
+      'Não invente fatos, não use emoji, não seja agressivo e não diga que analisou algo que não está no contexto.',
+      'Termine com uma pergunta simples e aberta.',
+      observation?`Observação do consultor, use como ângulo principal da mensagem: ${observation}`:''
+    ].filter(Boolean).join(' ');
     try{
-      const response=await fetch(CFG.aiProxyUrl||'/.netlify/functions/ai-proxy',{method:'POST',headers:await internalApiHeaders(),body:JSON.stringify({task:'outreach',prompt:'Crie uma primeira abordagem curta para WhatsApp. Não invente fatos. Não use emoji. Não seja agressivo e não diga que analisou algo que não está no contexto.',context:{prospect:p,company:'Achilles Media'}})});
-      const data=await response.json(); if(!response.ok) throw new Error(data.error||'IA indisponível'); return data.text||base;
-    }catch{return base;}
+      const response=await fetch(CFG.aiProxyUrl||'/.netlify/functions/ai-proxy',{method:'POST',headers:await internalApiHeaders(),body:JSON.stringify({task:'outreach',prompt:instructions,context:{
+        prospect:{nome:p.name,categoria:p.category,cidade:state.prospecting.city,site:p.website||'não identificado',nota:p.rating||null,avaliacoes:p.userRatingCount||null,melhorEncaixe:p.recommendedService||'',score:p.score,scoreSite:p.siteScore,scoreDigital:p.digitalScore,scoreAutomacao:p.automationScore,sinais:p.reasons||p.scoreReasons||[]},
+        observacao:observation||null,
+        company:state.data.settings?.company||'Achilles Media'
+      }})});
+      const data=await response.json();
+      if(!response.ok) throw new Error(data.error||'IA indisponível');
+      return {text:data.text||base,generated:!!data.text};
+    }catch(error){
+      return {text:base,generated:false,error:error.message};
+    }
   }
 
   function exportProspectsCsv() {
-    const rows=state.prospecting.results; if(!rows.length)return;
+    // Exporta exatamente a lista vis\u00edvel: o CSV precisa refletir os filtros aplicados.
+    const rows=visibleProspects(); if(!rows.length)return;
     const cols=['name','category','score','band','recommendedService','siteScore','digitalScore','automationScore','rating','userRatingCount','phone','whatsapp','email','website','instagram','address','distanceKm','googleUrl','source'];
     const esc=v=>`"${String(v??'').replace(/"/g,'""')}"`;
-    const csv='\ufeff'+[cols.join(';'),...rows.map(r=>cols.map(c=>esc(r[c])).join(';'))].join('\n');
+    const csv='\ufeff'+[[...cols,'whatsappDireto'].join(';'),...rows.map(r=>[...cols.map(c=>esc(r[c])),esc(whatsappDigits(r))].join(';'))].join('\n');
     const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`prospects-${state.prospecting.city.toLowerCase().replace(/\s+/g,'-')}-${todayISO()}.csv`;a.click();URL.revokeObjectURL(url);
   }
 
@@ -859,9 +1006,12 @@
     document.querySelectorAll('[data-action="enrich-prospect"]').forEach(b=>b.addEventListener('click',()=>enrichProspect(b.dataset.prospect)));
     document.querySelectorAll('[data-action="prospect-crm"]').forEach(b=>b.addEventListener('click',()=>addProspectToCrm(b.dataset.prospect)));
     document.querySelectorAll('[data-action="prospect-approach"]').forEach(b=>b.addEventListener('click',()=>openModal('prospect-approach',b.dataset.prospect)));
+    document.querySelectorAll('[data-action="prospect-whatsapp"]').forEach(b=>b.addEventListener('click',()=>openProspectWhatsApp(b.dataset.prospect)));
+    document.querySelectorAll('[data-filter-group]').forEach(b=>b.addEventListener('click',()=>toggleProspectFilter(b.dataset.filterGroup,b.dataset.filterValue)));
+    document.querySelectorAll('[data-action="clear-prospect-filters"]').forEach(b=>b.addEventListener('click',()=>{state.prospecting.filters={contact:[],fit:[]};renderCurrentPage();}));
     document.querySelector('[data-action="export-prospects"]')?.addEventListener('click',exportProspectsCsv);
     document.querySelector('[data-action="toggle-prospect-view"]')?.addEventListener('click',()=>{state.prospecting.view=state.prospecting.view==='list'?'split':'list';renderCurrentPage()});
-    if(state.route==='prospecting' && state.prospecting.results.length && state.prospecting.view!=='list') setTimeout(renderProspectMap,30);
+    if(state.route==='prospecting' && visibleProspects().length && state.prospecting.view!=='list') setTimeout(renderProspectMap,30);
   }
 
   function bindAssistant() {
@@ -951,7 +1101,15 @@
     if(type==="project-details") { const p=state.data.projects.find(x=>x.id===id); const pr=projectProgress(p); const tasks=state.data.tasks.filter(t=>t.projectId===p.id); return modalFrame(p.name,`${p.client} · entrega ${shortDate(p.due)}`,`<div class="grid grid-2"><div class="card card-pad"><div class="contact-label">Progresso</div><div class="contact-value">${pr.pct}% ${pr.derived?`(${pr.done} de ${pr.total} tarefas)`:"(sem tarefas vinculadas)"}</div></div><div class="card card-pad"><div class="contact-label">Valor</div><div class="contact-value">${money(p.value)}</div></div></div><div class="progress" style="margin-top:14px"><span style="width:${pr.pct}%"></span></div><div class="contact-section"><div class="contact-label">Tarefas do projeto</div>${tasks.length?`<div class="task-list" style="margin-top:10px">${tasks.map(taskItem).join("")}</div>`:`<p class="text-muted" style="font-size:11px;margin-top:8px">Nenhuma tarefa vinculada. O progresso deste projeto ainda é manual.</p>`}</div>`,`<button class="btn btn-secondary" data-action="close-modal">Fechar</button><button class="btn btn-primary" data-action="new-task">${icon("plus")} Nova tarefa</button>`); }
     if(type==="task") { const team=state.data.team||[]; return modalFrame("Nova tarefa","Toda tarefa pertence a um projeto e tem um responsável.",`<form id="modal-form" class="form-grid"><div class="form-group full"><label class="label">Título</label><input class="input" name="title" required /></div><div class="form-group"><label class="label">Projeto</label><select class="select" name="projectId">${state.data.projects.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("")}</select></div><div class="form-group"><label class="label">Responsável</label><select class="select" name="assignee"><option value="">A designar</option>${team.map(m=>`<option value="${m.id}">${escapeHtml(m.name)}</option>`).join("")}</select></div><div class="form-group"><label class="label">Prazo</label><input class="input" name="due" type="date" value="${todayISO()}" /></div><div class="form-group"><label class="label">Prioridade</label><select class="select" name="priority"><option value="low">Baixa</option><option value="medium" selected>Média</option><option value="high">Alta</option></select></div></form>`,`<button class="btn btn-secondary" data-action="close-modal">Cancelar</button><button class="btn btn-primary" data-action="save-task">Criar tarefa</button>`); }
     if(type==="incoming") return modalFrame("Simular mensagem recebida","Teste o chatbot por regras sem conectar o WhatsApp.",`<form id="modal-form"><label class="label">Mensagem do cliente</label><textarea class="textarea" name="message" required>Quanto custa um site para minha empresa?</textarea></form>`,`<button class="btn btn-secondary" data-action="close-modal">Cancelar</button><button class="btn btn-primary" data-action="simulate-message">Processar mensagem</button>`);
-    if(type==="prospect-approach") { const p=state.prospecting.results.find(x=>x.id===id)||state.data.prospects.find(x=>x.id===id); const angle=p.recommendedService==='Site'&&!p.website?'Vi a presença de vocês no Google e não encontrei um site próprio.':p.recommendedService==='Automação / IA'?'Acredito que a operação de vocês possa ter espaço para automações no atendimento e relacionamento com clientes.':'Vi a presença de vocês no Google e acredito que exista espaço para fortalecer ainda mais o posicionamento digital.'; const initial=`Olá! Tudo bem? ${angle} Trabalho na Achilles Media. Posso te mostrar uma ideia de forma bem objetiva?`; return modalFrame("Preparar abordagem",`${p.name} · score ${p.score}`,`<div class="form-group"><label class="label">Mensagem</label><textarea class="textarea approach-editor" id="prospect-approach-text">${escapeHtml(initial)}</textarea></div><div class="prospect-approach-context"><strong>Contexto usado</strong><p>${escapeHtml(`Melhor encaixe: ${p.recommendedService||'Diagnóstico digital'} · Site ${p.siteScore||0} · Digital ${p.digitalScore||0} · IA ${p.automationScore||0} · ${(p.reasons||p.scoreReasons||[]).join(' · ')}`)}</p></div>`,`<button class="btn btn-secondary" data-action="generate-prospect-approach" data-prospect="${p.id}">${icon('spark')} Gerar com Claude</button><button class="btn btn-primary" data-action="open-prospect-whatsapp" data-prospect="${p.id}">${icon('external')} Abrir WhatsApp</button>`); }
+    if(type==="prospect-approach") {
+      const p=findProspect(id); if(!p) return modalFrame("Preparar abordagem","","<p>Prospect não encontrado.</p>",`<button class="btn btn-primary" data-action="close-modal">Fechar</button>`);
+      const wa=whatsappDigits(p);
+      return modalFrame("Preparar abordagem",`${p.name} · score ${p.score}`,
+        `<div class="form-group"><label class="label">Mensagem</label><textarea class="textarea approach-editor" id="prospect-approach-text">${escapeHtml(approachText(p))}</textarea><div class="help">Edite à vontade. A mensagem salva passa a ser usada também pelo botão WhatsApp do card.</div></div>
+        <div class="form-group"><label class="label">Observação para o Claude <span class="label-optional">opcional</span></label><textarea class="textarea approach-note" id="prospect-approach-note" placeholder="Ex.: falar que a concorrência da região já tem site; citar que atendem convênio; usar tom mais informal">${escapeHtml(p.approachNote||'')}</textarea><div class="help">O que você escrever aqui vira o ângulo principal da mensagem gerada.</div></div>
+        <div class="prospect-approach-context"><strong>Contexto usado</strong><p>${escapeHtml(`Melhor encaixe: ${p.recommendedService||'Diagnóstico digital'} · Site ${p.siteScore||0} · Digital ${p.digitalScore||0} · IA ${p.automationScore||0} · ${(p.reasons||p.scoreReasons||[]).join(' · ')}`)}</p>${wa?`<p class="approach-target">WhatsApp: +${escapeHtml(wa)}</p>`:`<p class="approach-target warn">Sem celular publicado no Google. Use Enriquecer ou complete o número no CRM antes de enviar.</p>`}</div>`,
+        `<button class="btn btn-ghost" data-action="save-prospect-approach" data-prospect="${p.id}">${icon('check')} Salvar</button><button class="btn btn-secondary" data-action="generate-prospect-approach" data-prospect="${p.id}">${icon('spark')} Gerar com Claude</button><button class="btn btn-primary" data-action="open-prospect-whatsapp" data-prospect="${p.id}" ${wa?'':'disabled'}>${icon('send')} Abrir WhatsApp</button>`);
+    }
     if(type==="proposal-preview") { const p=state.data.proposals.find(x=>x.id===id); return modalFrame("Proposta comercial",`${p.client} · validade até ${shortDate(p.validUntil)}`,`<div style="padding:8px 0"><span class="eyebrow">Achilles Media</span><h2 style="font-size:28px;margin:14px 0 8px">${escapeHtml(p.service)}</h2><p class="text-muted" style="line-height:1.7">Projeto desenvolvido para posicionar a ${escapeHtml(p.client)} com uma entrega clara, responsiva e orientada a resultado.</p><div class="card card-pad" style="margin-top:18px"><div class="flex justify-between"><span>Investimento do projeto</span><strong class="text-gold" style="font-size:22px">${money(p.value)}</strong></div></div><p class="text-muted" style="font-size:10px;line-height:1.6;margin-top:18px">O texto definitivo poderá ser gerado por IA, mas valores e serviços sempre virão do banco de dados.</p></div>`,`<button class="btn btn-secondary" data-action="close-modal">Fechar</button><button class="btn btn-primary" data-action="download-proposal" data-proposal="${p.id}">${icon("download")} Salvar HTML</button>`); }
     if(type==="lead-details") { const l=state.data.leads.find(x=>x.id===id); return modalFrame(l.company,`${l.contact} · ${l.phone}`,`<div class="grid grid-2"><div class="card card-pad"><div class="contact-label">Serviço</div><div class="contact-value">${escapeHtml(l.service)}</div></div><div class="card card-pad"><div class="contact-label">Valor</div><div class="contact-value">${money(l.value)}</div></div><div class="card card-pad"><div class="contact-label">Score</div><div class="contact-value">${l.score}</div></div><div class="card card-pad"><div class="contact-label">Próxima ação</div><div class="contact-value">${escapeHtml(l.nextAction)}</div></div></div><div class="contact-section"><div class="contact-label">Contexto</div><div class="contact-value text-muted">${escapeHtml(l.notes)}</div></div>`,`<button class="btn btn-secondary" data-action="close-modal">Fechar</button><button class="btn btn-primary" data-action="manual-message" data-lead="${l.id}">${icon("external")} Abrir WhatsApp</button>`); }
     if(type==="connection") { const info={supabase:["Supabase","Informe URL e chave pública no config.js, execute o schema SQL e desative demoMode."],whatsapp:["WhatsApp Cloud API","Opcional. O envio assistido já funciona sem API. Quando ativar a Cloud API, configure as variáveis Meta no Netlify."],ai:["Claude API","Defina AI_PROVIDER=anthropic, AI_MODEL=claude-haiku-4-5 e ANTHROPIC_API_KEY no Netlify. Nenhuma chave fica no navegador."]}[id]; return modalFrame(info[0],"Conexão preparada para ativação gradual.",`<div class="card card-pad"><div class="flex gap-12"><span class="metric-icon">${icon("link")}</span><div><strong>${info[0]}</strong><p class="text-muted" style="font-size:11px;line-height:1.65">${info[1]}</p></div></div></div><p class="text-muted" style="font-size:10px;line-height:1.6;margin-top:14px">Consulte docs/GUIA_IMPLEMENTACAO.md para o passo a passo completo.</p>`,`<button class="btn btn-primary" data-action="close-modal">Entendi</button>`); }
@@ -970,8 +1128,18 @@
     document.querySelectorAll("[data-task-toggle]").forEach(b=>b.addEventListener("click",()=>toggleTask(b.dataset.taskToggle)));
     document.querySelector('[data-action="save-task"]')?.addEventListener("click",()=>{const f=new FormData(document.getElementById("modal-form"));const proj=state.data.projects.find(p=>p.id===f.get("projectId"));const t={id:uid("task"),title:f.get("title"),projectId:proj?proj.id:"",project:proj?proj.name:"Sem projeto",assignee:f.get("assignee")||"",due:f.get("due"),priority:f.get("priority"),done:false};state.data.tasks.unshift(t);logActivity("Tarefa criada",`${t.title}${t.assignee?` · ${memberName(t.assignee)}`:" · sem responsável"}.`);saveData();syncRecord("tasks",t);closeModal();toast("Tarefa criada",t.assignee?`Designada para ${memberName(t.assignee)}.`:"Ainda sem responsável.");renderCurrentPage();});
     document.querySelector('[data-action="download-proposal"]')?.addEventListener("click",()=>downloadProposal(id));
-    document.querySelector('[data-action="generate-prospect-approach"]')?.addEventListener("click",async e=>{const btn=e.currentTarget;btn.disabled=true;btn.textContent='Gerando...';const text=await generateProspectApproach(btn.dataset.prospect);const area=document.getElementById('prospect-approach-text');if(area)area.value=text;btn.disabled=false;btn.innerHTML=`${icon('spark')} Gerar novamente`;});
-    document.querySelector('[data-action="open-prospect-whatsapp"]')?.addEventListener("click",e=>{const p=state.prospecting.results.find(x=>x.id===e.currentTarget.dataset.prospect)||state.data.prospects.find(x=>x.id===e.currentTarget.dataset.prospect);const text=document.getElementById('prospect-approach-text')?.value||'';if(!p?.phone&&!p?.whatsapp){toast('Sem WhatsApp identificado','Adicione o prospect ao CRM para complementar o contato manualmente.');return;}openWhatsApp(p.whatsapp||p.phone,text,p.crmLeadId||null);});
+    document.querySelector('[data-action="save-prospect-approach"]')?.addEventListener("click",e=>{saveApproachDraft(e.currentTarget.dataset.prospect);toast('Abordagem salva','O botão WhatsApp do card já usa essa mensagem.');});
+    document.querySelector('[data-action="generate-prospect-approach"]')?.addEventListener("click",async e=>{
+      const btn=e.currentTarget;btn.disabled=true;btn.innerHTML=`${icon('refresh')} Gerando...`;
+      const note=document.getElementById('prospect-approach-note')?.value||'';
+      const result=await generateProspectApproach(btn.dataset.prospect,note);
+      const area=document.getElementById('prospect-approach-text');
+      if(area && result.text) area.value=result.text;
+      btn.disabled=false;btn.innerHTML=`${icon('spark')} Gerar novamente`;
+      if(result.generated) saveApproachDraft(btn.dataset.prospect);
+      else toast('Claude ainda não respondeu',result.error||'Mantive a abordagem padrão. Configure AI_PROVIDER e ANTHROPIC_API_KEY no Netlify para gerar com o Claude.');
+    });
+    document.querySelector('[data-action="open-prospect-whatsapp"]')?.addEventListener("click",e=>{const pid=e.currentTarget.dataset.prospect;saveApproachDraft(pid);openProspectWhatsApp(pid,document.getElementById('prospect-approach-text')?.value||'');closeModal();});
     document.querySelector('[data-action="manual-message"]')?.addEventListener("click",e=>{const l=state.data.leads.find(x=>x.id===e.currentTarget.dataset.lead);openWhatsApp(l.phone,`Olá, ${l.contact.split(" ")[0]}. Posso te atualizar sobre o próximo passo da ${l.company}?`,l.id);});
   }
 

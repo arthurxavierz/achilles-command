@@ -484,6 +484,7 @@ h1, h2, h3, h4,
 .tag.warning { color: #eda56c; background: rgba(224, 138, 60, 0.1); border-color: rgba(224, 138, 60, 0.2); }
 .tag.danger { color: #f0a08c; background: rgba(229, 103, 78, 0.1); border-color: rgba(229, 103, 78, 0.2); }
 .tag.info { color: var(--info); background: rgba(127, 169, 216, 0.1); border-color: rgba(127, 169, 216, 0.2); }
+.tag.whatsapp { color: var(--whatsapp); background: rgba(37, 211, 102, 0.09); border-color: rgba(37, 211, 102, 0.2); }
 
 /* ==========================================================================
    Tabela
@@ -700,7 +701,7 @@ h1, h2, h3, h4,
 .modal-head h3 { margin: 0; font-size: 20px; }
 .modal-head p { margin: 5px 0 0; color: var(--muted); font-size: 10.5px; }
 .modal-body { padding: 20px; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 9px; padding: 16px 20px; border-top: 1px solid var(--border); }
+.modal-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 9px; padding: 16px 20px; border-top: 1px solid var(--border); }
 .close-btn {
   width: 35px; height: 35px; border: 1px solid var(--border); border-radius: 11px;
   display: grid; place-items: center; background: transparent; cursor: pointer;
@@ -908,6 +909,35 @@ h1, h2, h3, h4,
 .prospect-approach-context strong { font-size: 10px; }
 .prospect-approach-context p { font-size: 10px; line-height: 1.55; color: var(--muted); margin: 5px 0 0; }
 .approach-editor { min-height: 150px; }
+.approach-note { min-height: 74px; }
+.approach-target { margin-top: 8px !important; padding-top: 8px; border-top: 1px solid var(--border); font-family: var(--font-mono); letter-spacing: .03em; }
+.approach-target.warn { color: #eda56c; font-family: inherit; letter-spacing: 0; }
+.label-optional { color: var(--faint); font-weight: 400; text-transform: none; letter-spacing: 0; }
+
+/* filtros da captação — chips de contato e de encaixe comercial */
+.prospect-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding: 13px 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); }
+.filter-group { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.filter-label {
+  color: var(--muted); font-size: 8.5px; font-weight: 500; text-transform: uppercase; letter-spacing: .1em;
+  margin-right: 3px; font-family: var(--font-mono);
+}
+.filter-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 999px; cursor: pointer;
+  font-size: 10.5px; font-weight: 500; font-family: inherit; letter-spacing: .01em;
+  border: 1px solid var(--border); background: rgba(245, 241, 230, 0.025); color: var(--text-soft);
+  transition: border-color .16s ease, background .16s ease, color .16s ease;
+}
+.filter-chip:hover { color: var(--text); border-color: var(--border-strong); }
+.filter-chip em { font-style: normal; font-size: 9px; color: var(--faint); font-family: var(--font-mono); }
+.filter-chip.active { color: var(--gold-light); border-color: rgba(201, 162, 65, 0.34); background: var(--gold-soft); }
+.filter-chip.active em { color: var(--gold-deep); }
+.filter-clear {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px;
+  border: 0; background: transparent; color: var(--muted); font-family: inherit; font-size: 10px; cursor: pointer;
+}
+.filter-clear:hover { color: var(--text); }
+@media (max-width: 720px) { .filter-clear { margin-left: 0; } }
+
 .leaflet-container { font-family: inherit; }
 .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #1d1a16; color: #f5efe4; }
 .leaflet-popup-content { font-size: 11px; line-height: 1.5; }

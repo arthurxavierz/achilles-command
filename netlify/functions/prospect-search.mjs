@@ -140,6 +140,16 @@ function scoreProspect(p) {
   };
 }
 
+/* Só celular abre conversa no WhatsApp: no Brasil são 9 dígitos começando
+   com 9 depois do DDD. O Google devolve fixo e celular no mesmo campo. */
+function contactRank(p = {}) {
+  const digits = String(p.phone || '').replace(/\D/g, '');
+  const local = digits.startsWith('55') ? digits.slice(2) : digits;
+  if (local.length === 11 && local[2] === '9') return 3;
+  if (digits) return 2;
+  return 0;
+}
+
 function mapPlace(place, origin) {
   const lat = Number(place.location?.latitude);
   const lon = Number(place.location?.longitude);
@@ -271,8 +281,10 @@ export default async (request) => {
     // Quando conseguimos o centro da cidade, respeitamos o raio escolhido no resultado final.
     if (origin) results = results.filter(p => p.distanceKm == null || p.distanceKm <= radiusKm + 1);
 
+    // Score empatado é comum; nesse caso quem tem WhatsApp entra na frente
+    // para que o corte pelo limite não descarte quem dá para abordar hoje.
     results = results
-      .sort((a, b) => b.score - a.score || b.userRatingCount - a.userRatingCount)
+      .sort((a, b) => b.score - a.score || contactRank(b) - contactRank(a) || b.userRatingCount - a.userRatingCount)
       .slice(0, limit);
 
     return json({

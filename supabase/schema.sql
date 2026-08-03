@@ -91,6 +91,8 @@ create table if not exists public.prospects (
   digital_score integer check (digital_score between 0 and 100),
   automation_score integer check (automation_score between 0 and 100),
   recommended_service text,
+  approach_message text,
+  approach_note text,
   score integer not null default 50 check (score between 0 and 100),
   score_band text,
   score_reasons jsonb not null default '[]'::jsonb,

@@ -41,6 +41,12 @@ O score não usa IA. Ele gera:
 - potencial para Automação / IA;
 - melhor encaixe comercial estimado.
 
+A ordenação é score, depois contato (WhatsApp > fixo > nenhum), depois volume de avaliações. O desempate por contato acontece no servidor, antes do corte pelo limite, e é repetido no navegador para continuar valendo depois do enriquecimento.
+
+Os filtros por canal de contato e por encaixe comercial rodam no navegador sobre o resultado já recebido. Não geram chamada nova ao Google.
+
+A dedução de WhatsApp usa o formato de celular brasileiro (DDD + 9 dígitos iniciados em 9), porque o Google entrega fixo e celular no mesmo campo. Um link `wa.me` obtido no enriquecimento tem prioridade sobre a dedução.
+
 `prospect-enrich.mjs` visita o site público somente quando solicitado e procura e-mail, redes sociais, telefone e link de WhatsApp visíveis.
 
 ## Segurança da Places API
@@ -54,6 +60,8 @@ Mantém autenticação, organizações, leads, prospects, conversas, campanhas, 
 ## Claude
 
 `ai-proxy.mjs` possui tarefas para assistente, abordagem e suporte. Busca e scoring não dependem do Claude.
+
+Na abordagem, a tarefa `outreach` recebe os sinais do prospect e a observação escrita no editor, que entra no prompt como ângulo principal da mensagem. Quando a IA não está configurada, o Command mantém a abordagem padrão e avisa — nunca apresenta o texto base como se tivesse vindo do modelo. A mensagem aprovada fica em `prospects.approach_message` e é a que o botão de WhatsApp usa.
 
 ## WhatsApp
 
