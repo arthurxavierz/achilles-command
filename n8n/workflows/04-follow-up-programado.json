@@ -1,0 +1,83 @@
+{
+  "name": "Achilles 04 | Follow-up programado",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "5b4483e8-ab37-4b2a-ac16-79da0dd70e4c",
+      "name": "Todos os dias às 08h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Substitua o array abaixo por uma consulta ao Supabase quando conectar as credenciais.\nconst proposals = $json.proposals || [];\nconst today = new Date();\nreturn proposals.filter(p => p.status === 'sent').map(p => {\n  const created = new Date(p.created_at || p.createdAt);\n  const days = Math.floor((today-created)/86400000);\n  return {json:{title:`Follow-up: ${p.client}`,project:'Comercial',due:today.toISOString().slice(0,10),priority:days >= 7 ? 'high' : 'medium',done:false,proposalId:p.id,daysWithoutResponse:days}};\n}).filter(item => item.json.daysWithoutResponse >= 2);"
+      },
+      "id": "4cc31d2a-9d1d-4aee-a0ea-fc43fc029594",
+      "name": "Gerar tarefa de follow-up",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -140,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "43534c1f-528a-4a2f-8bad-ac79a5733b00",
+      "name": "Pronto para Supabase",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        140,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Todos os dias às 08h": {
+      "main": [
+        [
+          {
+            "node": "Gerar tarefa de follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gerar tarefa de follow-up": {
+      "main": [
+        [
+          {
+            "node": "Pronto para Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "0b946c05-4b8a-4854-a5e1-b6c82c19a4c5",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

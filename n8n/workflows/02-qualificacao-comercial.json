@@ -1,0 +1,84 @@
+{
+  "name": "Achilles 02 | Qualificação comercial",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "achilles-lead-qualification",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a88c3d2c-8bb3-485e-aaf2-f7198248bc4d",
+      "name": "Receber contexto",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -420,
+        0
+      ],
+      "webhookId": "f0121b22-4015-4d39-bbc4-1146db0f53eb"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\nconst text = `${body.message || ''} ${body.notes || ''}`.toLowerCase();\nlet intent = 'diagnostico';\nlet service = body.service || 'Não classificado';\nlet nextQuestion = 'Qual resultado você quer alcançar com este projeto?';\nif (/site|landing|página/.test(text)) { service='Site ou landing page'; nextQuestion='Qual é o principal objetivo da página?'; }\nif (/chatbot|atendimento|whatsapp/.test(text)) { service='Chatbot'; nextQuestion='Quais dúvidas mais se repetem no atendimento?'; }\nif (/automação|processo|relatório|erp/.test(text)) { service='Automação empresarial'; nextQuestion='Qual tarefa manual mais consome tempo hoje?'; }\nif (/preço|valor|orçamento/.test(text)) intent='orcamento';\nif (/humano|pessoa|arthur/.test(text)) intent='handoff_humano';\nreturn [{json:{intent,service,nextQuestion,requiresHuman:intent==='handoff_humano',confidence:0.82}}];"
+      },
+      "id": "7e01b488-02a3-4a4a-93fd-79a31bb76787",
+      "name": "Qualificar por regras",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -150,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "1f7ca2f5-46e8-4432-9bc2-6374d11a6927",
+      "name": "Responder qualificação",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        120,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Receber contexto": {
+      "main": [
+        [
+          {
+            "node": "Qualificar por regras",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qualificar por regras": {
+      "main": [
+        [
+          {
+            "node": "Responder qualificação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "02f74231-70c1-4866-9a0e-db45ee54f4d2",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

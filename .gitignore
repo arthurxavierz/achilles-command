@@ -1,0 +1,21 @@
+# Segredos / ambiente
+.env
+.env.*
+!.env.example
+
+# Dependências / Netlify
+node_modules/
+.netlify/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Guias internos
+docs/GUIA_IMPLEMENTACAO.md
+docs/GUIA_DE_USO.md
+COMECE_AQUI.md
+
+# Arquivos temporários
+*.log
+*.tmp

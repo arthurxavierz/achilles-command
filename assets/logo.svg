@@ -1,0 +1,18 @@
+<svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="achGold" x1="24" y1="10" x2="74" y2="84" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F4E4B8"/>
+      <stop offset=".48" stop-color="#C9A241"/>
+      <stop offset="1" stop-color="#A8842F"/>
+    </linearGradient>
+    <linearGradient id="achEdge" x1="0" y1="0" x2="96" y2="96" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C9A241" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#C9A241" stop-opacity=".08"/>
+    </linearGradient>
+  </defs>
+  <rect width="96" height="96" rx="26" fill="#14100C"/>
+  <rect x=".5" y=".5" width="95" height="95" rx="25.5" stroke="url(#achEdge)"/>
+  <path d="M45 12L74 70H60.8L54 55.5H36L29.2 70H16L45 12Z" fill="url(#achGold)"/>
+  <path d="M45 33.5L39.9 46H50.1L45 33.5Z" fill="#14100C"/>
+  <circle cx="76" cy="64" r="6" fill="url(#achGold)"/>
+</svg>

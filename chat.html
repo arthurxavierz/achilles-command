@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#c9a241" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <title>Assistente Achilles</title>
+  <style>
+    :root{
+      --bg:#090807;--panel:#141210;--panel-2:#1a1714;--field:#100e0c;
+      --border:rgba(245,241,230,.08);--text:#f5f1e6;--soft:#b9b2a3;--muted:#837b6c;--faint:#5d564b;
+      --gold:#c9a241;--gold-light:#e3c877;--gold-soft:rgba(201,162,65,.11);
+      --gold-grad:linear-gradient(165deg,#e3c877 0%,#c9a241 48%,#a8842f 100%);
+      --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased}
+    ::selection{background:rgba(201,162,65,.28)}
+    ::-webkit-scrollbar{width:8px}::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:rgba(201,162,65,.16);border-radius:99px}
+    :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+
+    .chat{
+      height:100vh;display:flex;flex-direction:column;
+      background:
+        radial-gradient(ellipse 70% 34% at 82% -4%,rgba(201,162,65,.13),transparent 70%),
+        var(--bg);
+    }
+    header{
+      height:70px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+      padding:0 18px;border-bottom:1px solid var(--border);background:rgba(9,8,7,.9);backdrop-filter:blur(14px);
+    }
+    .brand{display:flex;align-items:center;gap:10px}
+    .brand-mark{
+      display:block;flex:0 0 auto;width:92px;aspect-ratio:921/217;background-color:var(--text);
+      -webkit-mask:url("/assets/logo-wordmark.png") no-repeat center/contain;
+      mask:url("/assets/logo-wordmark.png") no-repeat center/contain;
+    }
+    .brand-rule{flex:0 0 auto;width:1px;height:18px;background:linear-gradient(180deg,transparent,rgba(201,162,65,.55),transparent)}
+    .brand-sub{color:var(--muted);font-family:var(--mono);font-size:8.5px;letter-spacing:.18em;text-transform:uppercase;white-space:nowrap}
+    .online{display:flex;align-items:center;gap:7px;color:var(--muted);font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase}
+    .online i{width:6px;height:6px;border-radius:50%;background:#5fc98b;box-shadow:0 0 0 4px rgba(95,201,139,.12)}
+
+    #messages{flex:1;overflow:auto;padding:22px 20px;display:flex;flex-direction:column;gap:10px}
+    .msg{max-width:84%;padding:11px 14px;border-radius:14px;font-size:11.5px;line-height:1.6}
+    .bot{align-self:flex-start;background:var(--panel-2);border:1px solid var(--border);border-bottom-left-radius:4px}
+    .user{align-self:flex-end;background:var(--gold-grad);color:#14100a;border-bottom-right-radius:4px;font-weight:500;box-shadow:0 8px 22px rgba(201,162,65,.16)}
+    .msg small{display:block;margin-top:5px;font-family:var(--mono);font-size:8px;opacity:.6}
+
+    .choices{display:flex;flex-wrap:wrap;gap:7px;align-self:flex-start;max-width:95%}
+    .choice{
+      border:1px solid rgba(201,162,65,.24);background:var(--gold-soft);color:var(--text);
+      padding:8px 12px;border-radius:999px;font-family:var(--mono);font-size:9.5px;cursor:pointer;
+      transition:background .2s ease,border-color .2s ease,color .2s ease;
+    }
+    .choice:hover{background:rgba(201,162,65,.2);border-color:rgba(201,162,65,.42);color:var(--gold-light)}
+
+    form{padding:13px;border-top:1px solid var(--border);display:flex;gap:8px;background:var(--panel)}
+    input{
+      flex:1;height:42px;border:1px solid var(--border);border-radius:12px;background:var(--field);
+      color:var(--text);padding:0 13px;outline:none;font:500 11.5px Inter,sans-serif;
+      transition:border-color .2s ease,box-shadow .2s ease;
+    }
+    input::placeholder{color:var(--faint)}
+    input:focus{border-color:rgba(201,162,65,.5);box-shadow:0 0 0 3px rgba(201,162,65,.09)}
+    button.send{
+      width:42px;height:42px;border:0;border-radius:12px;background:var(--gold-grad);color:#14100a;
+      display:grid;place-items:center;cursor:pointer;
+      box-shadow:0 10px 26px rgba(201,162,65,.18),inset 0 1px 0 rgba(255,255,255,.24);
+      transition:transform .18s ease,box-shadow .18s ease;
+    }
+    button.send:hover{transform:translateY(-1px);box-shadow:0 14px 32px rgba(201,162,65,.26),inset 0 1px 0 rgba(255,255,255,.3)}
+    .footer{padding:0 13px 11px;background:var(--panel);color:var(--faint);font-family:var(--mono);font-size:8px;letter-spacing:.06em;text-align:center}
+
+    @media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important}}
+  </style>
+</head>
+<body>
+  <main class="chat">
+    <header><div class="brand"><span class="brand-mark" role="img" aria-label="Achilles Media"></span><span class="brand-rule" aria-hidden="true"></span><span class="brand-sub">Assistente</span></div><div class="online"><i></i>Disponível</div></header>
+    <section id="messages"></section>
+    <form id="form"><input id="input" autocomplete="off" placeholder="Escreva sua resposta"><button class="send" aria-label="Enviar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg></button></form>
+    <div class="footer">Atendimento inicial automatizado. Uma pessoa assume quando necessário.</div>
+  </main>
+  <script src="/config.js"></script>
+  <script src="/core.js"></script>
+  <script src="/chat.js"></script>
+</body>
+</html>

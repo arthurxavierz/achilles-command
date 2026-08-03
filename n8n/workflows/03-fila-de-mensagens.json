@@ -1,0 +1,110 @@
+{
+  "name": "Achilles 03 | Fila de mensagens",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "achilles-message-queue",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "d8b02cce-8525-42a4-a9b4-8a072f4e793e",
+      "name": "Receber campanha",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        0
+      ],
+      "webhookId": "4a2ee8b8-7792-40ba-92ca-85deeba17169"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\nconst campaign = body.campaign || {};\nconst leads = Array.isArray(body.leads) ? body.leads : [];\nconst template = campaign.message || 'Olá, {{nome}}.';\nreturn leads.map(lead => ({json:{campaignId:campaign.id,leadId:lead.id,destination:lead.phone,message:template.replaceAll('{{nome}}',(lead.contact||'').split(' ')[0]).replaceAll('{{empresa}}',lead.company||''),channel:body.channel||'manual_whatsapp',status:'pending'}}));"
+      },
+      "id": "7887fe0d-6122-430a-8058-ab846bd8a0ef",
+      "name": "Montar fila",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "queue",
+        "options": {}
+      },
+      "id": "ed41a21d-a1cd-4943-8248-fea42c8f4402",
+      "name": "Consolidar resultado",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        40,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ prepared: $json.queue.length, queue: $json.queue }) }}",
+        "options": {}
+      },
+      "id": "5d3d3ad7-76d5-4cc6-b7d7-2aa44c3bd313",
+      "name": "Responder fila",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        280,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Receber campanha": {
+      "main": [
+        [
+          {
+            "node": "Montar fila",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar fila": {
+      "main": [
+        [
+          {
+            "node": "Consolidar resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consolidar resultado": {
+      "main": [
+        [
+          {
+            "node": "Responder fila",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "effe2f63-1fdc-46b4-9977-83158bd6db75",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

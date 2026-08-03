@@ -1,0 +1,84 @@
+{
+  "name": "Achilles 01 | Entrada de lead",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "achilles-lead-intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "5e68e3ba-343e-4fb4-8541-d2fb63764c03",
+      "name": "Receber lead",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -420,
+        0
+      ],
+      "webhookId": "16c68ac0-c840-46cf-aac5-e4190b3903f5"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\nconst required = ['company','contact','phone'];\nconst missing = required.filter(key => !body[key]);\nif (missing.length) throw new Error(`Campos obrigatórios: ${missing.join(', ')}`);\nconst service = String(body.service || '').toLowerCase();\nlet score = 55;\nif (body.source === 'Indicação') score += 15;\nif (Number(body.value || 0) >= 2500) score += 10;\nif (service.includes('sistema') || service.includes('automação')) score += 10;\nreturn [{ json: { event: 'lead.created', lead: { ...body, id: body.id || `lead_${Date.now()}`, stage: 'new', score: Math.min(score, 100), lastContact: new Date().toISOString().slice(0,10), nextAction: 'Realizar diagnóstico' } } }];"
+      },
+      "id": "69008fa9-a874-4e78-9b8c-06a869c1cf52",
+      "name": "Validar e classificar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "e0ace600-ec45-40c9-a36a-ecfddd9ec949",
+      "name": "Responder ao painel",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        120,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Receber lead": {
+      "main": [
+        [
+          {
+            "node": "Validar e classificar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar e classificar": {
+      "main": [
+        [
+          {
+            "node": "Responder ao painel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b9cbf0e4-c6a6-47c5-a723-a091a643dd14",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

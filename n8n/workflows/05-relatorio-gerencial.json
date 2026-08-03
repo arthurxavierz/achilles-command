@@ -1,0 +1,83 @@
+{
+  "name": "Achilles 05 | Relatório gerencial",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "b43da8e5-797c-4077-bf97-5d9dd4c73b31",
+      "name": "Segunda às 08h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -420,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $json.data || { leads: [], proposals: [], projects: [], tasks: [] };\nconst active = data.leads.filter(l => !['won','lost'].includes(l.stage));\nconst pipeline = active.reduce((sum,l)=>sum+Number(l.value||0),0);\nreturn [{json:{period:new Date().toLocaleDateString('pt-BR'),leads:data.leads.length,activeLeads:active.length,pipeline,proposalsPending:data.proposals.filter(p=>['draft','review','sent'].includes(p.status)).length,projectsAtRisk:data.projects.filter(p=>p.progress<30).length,pendingTasks:data.tasks.filter(t=>!t.done).length}}];"
+      },
+      "id": "d50899be-4f6c-4f62-8d17-07ac20117ba9",
+      "name": "Consolidar indicadores",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -140,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "77d6be4c-2751-4395-a033-14ab0b3d14e4",
+      "name": "Pronto para e-mail ou IA",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        140,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Segunda às 08h": {
+      "main": [
+        [
+          {
+            "node": "Consolidar indicadores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consolidar indicadores": {
+      "main": [
+        [
+          {
+            "node": "Pronto para e-mail ou IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a58316a8-0763-453c-8569-4a375ed647bc",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
