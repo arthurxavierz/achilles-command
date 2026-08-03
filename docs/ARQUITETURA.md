@@ -61,7 +61,9 @@ Mantém autenticação, organizações, leads, prospects, conversas, campanhas, 
 
 `ai-proxy.mjs` possui tarefas para assistente, abordagem e suporte. Busca e scoring não dependem do Claude.
 
-Na abordagem, a tarefa `outreach` recebe os sinais do prospect e a observação escrita no editor, que entra no prompt como ângulo principal da mensagem. Quando a IA não está configurada, o Command mantém a abordagem padrão e avisa — nunca apresenta o texto base como se tivesse vindo do modelo. A mensagem aprovada fica em `prospects.approach_message` e é a que o botão de WhatsApp usa.
+A abordagem tem três modelos sobre a mesma estrutura validada: genérico, site com protótipo e automação. A escolha usa fato observado antes de média — ausência (ou queda) do site decide o modelo de site; o de automação exige `AUTOMATION_GAP` de vantagem sobre os outros dois scores. `{{saudacao}}` só é resolvida na abertura do WhatsApp, para a mensagem não chegar com a saudação do momento em que foi preparada.
+
+Na abordagem, a tarefa `outreach` recebe os sinais do prospect, o modelo escolhido e a observação escrita no editor, que entra no prompt como ângulo principal da mensagem. Quando a IA não está configurada, o Command mantém a abordagem padrão e avisa — nunca apresenta o texto base como se tivesse vindo do modelo. A mensagem aprovada fica em `prospects.approach_message` e é a que o botão de WhatsApp usa.
 
 ## WhatsApp
 

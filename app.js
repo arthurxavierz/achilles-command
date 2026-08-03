@@ -125,6 +125,7 @@
     prospects: [],
     settings: {
       company:"Achilles Media",
+      ownerName:"Arthur",
       notificationEmail:"contato@achillesmedia.com.br",
       whatsappNumber:"5541984991690",
       botName:"Assistente Achilles",
@@ -540,7 +541,7 @@
       <div class="prospect-signals">
         <span class="tag ${p.phone||p.whatsapp?'info':''}">${icon('phone',12)} ${escapeHtml(contact)}</span>
         ${wa?`<span class="tag whatsapp">${icon('message',12)} WhatsApp</span>`:''}
-        <span class="tag ${!p.website?'gold':''}">${p.website?'Site encontrado':'Sem site identificado'}</span>
+        <span class="tag ${!p.website||p.siteUnreachable?'gold':''}">${p.siteUnreachable?'Site fora do ar':p.website?'Site encontrado':'Sem site identificado'}</span>
         ${rating?`<span class="tag">★ ${rating.toFixed(1)} · ${reviews.toLocaleString('pt-BR')} avaliações</span>`:''}
         <span class="tag ${scoreClass}">${escapeHtml(p.band || p.scoreBand || 'Oportunidade')}</span>
       </div>
@@ -646,14 +647,107 @@
     </div>`;
   }
 
-  function defaultApproach(p={}) {
-    const angle = p.recommendedService==='Site' && !p.website
-      ? 'Vi a presença de vocês no Google e não encontrei um site próprio. Acredito que exista uma oportunidade interessante de transformar essa procura em uma presença digital mais completa.'
-      : p.recommendedService==='Automação / IA'
-        ? 'Acredito que o perfil da operação de vocês pode ter espaço para automatizar etapas de atendimento e relacionamento com clientes.'
-        : 'Vi a presença de vocês no Google e acredito que exista espaço para fortalecer ainda mais o posicionamento digital da empresa.';
-    return `Olá! Tudo bem? ${angle} Trabalho na Achilles Media. Posso te mostrar a ideia de forma bem objetiva?`;
+  /* --- abordagem -----------------------------------------------------------
+     Três variantes sobre a mesma estrutura já validada em campo: abertura,
+     oportunidade, ganho e convite. A genérica é a régua; as outras duas só
+     entram quando existe um motivo concreto para especializar o discurso.
+
+     {{saudacao}} fica como variável e só é resolvida na hora de abrir o
+     WhatsApp — mensagem preparada de manhã não pode chegar dando bom dia
+     às oito da noite. */
+
+  const AUTOMATION_GAP = 8; // vantagem mínima para o ângulo de automação dominar
+
+  function greeting(date = new Date()) {
+    const h = date.getHours();
+    if (h >= 5 && h < 12) return 'Bom dia';
+    if (h >= 12 && h < 18) return 'Boa tarde';
+    return 'Boa noite';
   }
+
+  /* Artigo deduzido do primeiro termo do nome ("a Clínica", "o Consultório").
+     A lista resolve o que a terminação erra — "Restaurante" e "Lanchonete"
+     terminam igual e têm gêneros diferentes. Quando nada bate, a frase segue
+     sem artigo, em vez de arriscar uma concordância errada logo na primeira
+     mensagem. */
+  const NAME_ARTICLE = {
+    a: ['clinica','academia','farmacia','drogaria','padaria','confeitaria','pizzaria','sorveteria','lanchonete','churrascaria','cafeteria','loja','casa','otica','oficina','imobiliaria','escola','autoescola','creche','barbearia','papelaria','joalheria','floricultura','pousada','distribuidora','transportadora','construtora','corretora','agencia','assessoria','consultoria','grafica','pastelaria','serralheria','marmoraria','veterinaria','empresa','associacao','unidade'],
+    o: ['restaurante','bar','hotel','motel','mercado','supermercado','minimercado','mercadinho','salao','centro','consultorio','laboratorio','escritorio','instituto','hospital','colegio','acougue','posto','estudio','studio','espaco','grupo','auto','buffet','cafe','pet','deposito','armazem','atelie','sitio','clube','ponto','servico','comercio']
+  };
+
+  function nameWithArticle(name='') {
+    const raw = String(name).trim().split(/\s+/)[0] || '';
+    if (!raw) return 'a empresa de vocês';
+    const first = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    if (NAME_ARTICLE.a.includes(first)) return `a ${name}`;
+    if (NAME_ARTICLE.o.includes(first)) return `o ${name}`;
+    if (/(cao|sao|dade|agem|eza|ura|encia|ancia|aria|eria)$/.test(first)) return `a ${name}`;
+    if (/a$/.test(first)) return `a ${name}`;
+    if (/o$/.test(first)) return `o ${name}`;
+    return name;
+  }
+
+  /* A escolha usa o sinal mais confiável de cada caso, não só o maior score:
+     "não tem site" é fato observado; "score muito superior" é média. Site que
+     não responde no enriquecimento conta como ausência de site. */
+  function approachAngle(p={}) {
+    if (!p.website || p.siteUnreachable) return 'site';
+    const site=Number(p.siteScore||0), digital=Number(p.digitalScore||0), automation=Number(p.automationScore||0);
+    if (automation >= digital + AUTOMATION_GAP && automation >= site + AUTOMATION_GAP) return 'automation';
+    return 'generic';
+  }
+
+  // Sem "no Google" no fim: a frase que usa isso já diz "no Google" antes.
+  function socialProof(p={}) {
+    const rating=Number(p.rating||0), reviews=Number(p.userRatingCount||0);
+    if (rating && reviews) return `com nota ${rating.toFixed(1).replace('.',',')} e ${reviews.toLocaleString('pt-BR')} avaliações`;
+    if (reviews) return `com ${reviews.toLocaleString('pt-BR')} avaliações`;
+    return '';
+  }
+
+  function defaultApproach(p={}) {
+    const consultant = state.data.settings?.ownerName || 'Arthur';
+    const agency = state.data.settings?.company || 'Achilles Media';
+    const target = nameWithArticle(p.name);
+    const open = `{{saudacao}}! Tudo bem? Sou o ${consultant}, da ${agency}.`;
+    const invite = 'Consigo te apresentar brevemente?';
+    const proof = socialProof(p);
+    const angle = approachAngle(p);
+
+    if (angle === 'site') {
+      const problem = p.siteUnreachable
+        ? 'o site que aparece no perfil de vocês não está no ar'
+        : 'não encontrei um site próprio da empresa';
+      // Sem prova social, "e vi que não encontrei" fica truncado; a frase
+      // segue direto no verbo.
+      const context = proof
+        ? `vi que vocês já têm uma procura boa no Google, ${proof}, mas ${problem}`
+        : (p.siteUnreachable ? `vi que ${problem}` : problem);
+      return `${open}\nBusquei entender sobre ${target} e ${context}.\n\nCheguei a montar um protótipo de site pensando em vocês, para mostrar como essa procura que já existe pode virar contato direto e novos clientes, sem depender só do perfil no Google.\n\n${invite}`;
+    }
+
+    if (angle === 'automation') {
+      return `${open}\nBusquei entender sobre ${target} e vi que a presença digital de vocês já está estruturada. O que me chamou atenção foram as oportunidades do lado interno: automação do atendimento e do follow-up, integração das ferramentas que já usam e até um sistema próprio, desenhado para a rotina de vocês.\n\nSão pontos que reduzem trabalho manual, organizam a operação e liberam tempo da equipe para o que realmente gera receita.\n\n${invite}`;
+    }
+
+    return `${open}\nBusquei entender sobre ${target} e identifiquei algumas oportunidades interessantes, tanto na presença digital e na forma como se apresentam nas redes, quanto em possíveis otimizações de processos internos com tecnologia e automação.\n\nSão pontos que podem melhorar a operação e também contribuir para gerar novas oportunidades comerciais.\n\n${invite}`;
+  }
+
+  function resolveApproach(text, p={}) {
+    return String(text||'')
+      .replace(/\{\{\s*sauda[cç][aã]o\s*\}\}/gi, greeting())
+      .replace(/\{\{\s*empresa\s*\}\}/gi, p.name || 'sua empresa');
+  }
+
+  /* Mantém o texto do Claude compatível com a saudação dinâmica. Sem \b no
+     fim: "olá" termina em caractere acentuado, que não conta como limite de
+     palavra e faria a troca falhar justamente na saudação mais provável. */
+  function keepGreetingToken(text='') {
+    if (/\{\{\s*sauda[cç][aã]o\s*\}\}/i.test(text)) return text;
+    return String(text).replace(/^\s*(bom dia|boa tarde|boa noite|olá|ola|oi)(?=[\s!,.:;-]|$)/i, '{{saudacao}}');
+  }
+
+  const ANGLE_LABEL = { site: 'Site + protótipo', automation: 'Automação e sistema', generic: 'Abordagem validada' };
 
   // A mensagem editada no modal vira a mensagem oficial daquele prospect.
   const approachText = p => String(p?.approachMessage||'').trim() || defaultApproach(p);
@@ -678,7 +772,8 @@
     if(!number){ toast('Sem WhatsApp identificado','O número publicado no Google é fixo. Use Enriquecer ou complete o contato no CRM.'); return; }
     // Sem texto explícito (botão do card) usamos a mensagem salva ou a padrão.
     // Quem salva é saveApproachDraft, para o padrão não congelar no prospect.
-    const message=String(text??approachText(p));
+    // A saudação é resolvida aqui, no momento real do envio.
+    const message=resolveApproach(text??approachText(p),p);
     logActivity('Abordagem aberta',`WhatsApp de ${p.name} aberto pela captação.`);
     saveData(); // openWhatsApp relê o armazenamento quando há lead no CRM
     openWhatsApp(number,message,p.crmLeadId||null);
@@ -748,9 +843,17 @@
       p.email=p.email||data.emails?.[0]||''; p.instagram=p.instagram||data.instagram||''; p.facebook=p.facebook||data.facebook||'';
       if(!p.phone && data.phones?.[0]) p.phone=data.phones[0];
       if(!p.whatsapp && data.whatsapp){ const m=data.whatsapp.match(/(?:phone=|wa\.me\/)(\d+)/); if(m)p.whatsapp=m[1]; }
+      p.siteUnreachable=false;
       Object.assign(p,scoreProspectClient(p),{lastEnrichedAt:new Date().toISOString()});
       upsertProspect(p); renderCurrentPage(); toast('Contato enriquecido','Dados públicos encontrados no site foram adicionados.');
-    }catch(error){toast('Enriquecimento incompleto',error.message)}
+    }catch(error){
+      // O site publicado não respondeu: sinal comercial relevante, porque muda
+      // a abordagem para construção de site. Fica visível no card para você
+      // conferir — há sites no ar que simplesmente bloqueiam robôs.
+      p.siteUnreachable=true; p.lastEnrichedAt=new Date().toISOString();
+      upsertProspect(p); renderCurrentPage();
+      toast('Site não respondeu',`${error.message}. Confira no navegador: se estiver mesmo fora do ar, a abordagem de site já foi ajustada.`);
+    }
   }
 
   function upsertProspect(p) {
@@ -777,21 +880,32 @@
     const p=findProspect(id); if(!p) return {text:'',generated:false,error:'Prospect não encontrado.'};
     const base=defaultApproach(p);
     const observation=String(note||'').trim();
+    const angle=approachAngle(p);
+    const angleBrief={
+      site:'A empresa não tem site próprio (ou o site está fora do ar). Puxe o discurso para a construção do site e diga que você chegou a montar um protótipo pensando neles e gostaria de apresentar.',
+      automation:'A empresa já tem presença digital estruturada. Puxe o discurso para automação de processos, integração das ferramentas que já usam e a possibilidade de um sistema próprio.',
+      generic:'Mantenha o discurso equilibrado entre presença digital e otimização de processos internos, sem escolher um lado.'
+    }[angle];
     const instructions=[
-      'Escreva uma primeira abordagem curta para WhatsApp, em português do Brasil, com no máximo 3 frases.',
-      'Não invente fatos, não use emoji, não seja agressivo e não diga que analisou algo que não está no contexto.',
-      'Termine com uma pergunta simples e aberta.',
-      observation?`Observação do consultor, use como ângulo principal da mensagem: ${observation}`:''
+      'Reescreva a primeira abordagem de WhatsApp abaixo mantendo a mesma estrutura: abertura com saudação e apresentação, um parágrafo com a oportunidade observada, um parágrafo curto com o ganho para o negócio e um convite final em forma de pergunta.',
+      'Português do Brasil, tom profissional e natural, sem emoji, sem exagero e sem prometer resultado.',
+      'Comece exatamente com o marcador {{saudacao}} no lugar de "Bom dia" — ele é substituído pelo horário real do envio.',
+      'Não invente fatos e não diga que analisou algo que não está no contexto.',
+      angleBrief,
+      observation?`Observação do consultor, use como ângulo principal: ${observation}`:'',
+      `Mensagem atual, use como base:\n${approachText(p)}`
     ].filter(Boolean).join(' ');
     try{
       const response=await fetch(CFG.aiProxyUrl||'/.netlify/functions/ai-proxy',{method:'POST',headers:await internalApiHeaders(),body:JSON.stringify({task:'outreach',prompt:instructions,context:{
-        prospect:{nome:p.name,categoria:p.category,cidade:state.prospecting.city,site:p.website||'não identificado',nota:p.rating||null,avaliacoes:p.userRatingCount||null,melhorEncaixe:p.recommendedService||'',score:p.score,scoreSite:p.siteScore,scoreDigital:p.digitalScore,scoreAutomacao:p.automationScore,sinais:p.reasons||p.scoreReasons||[]},
+        prospect:{nome:p.name,categoria:p.category,cidade:state.prospecting.city,site:p.siteUnreachable?'fora do ar':(p.website||'não identificado'),nota:p.rating||null,avaliacoes:p.userRatingCount||null,melhorEncaixe:p.recommendedService||'',score:p.score,scoreSite:p.siteScore,scoreDigital:p.digitalScore,scoreAutomacao:p.automationScore,sinais:p.reasons||p.scoreReasons||[]},
+        angulo:ANGLE_LABEL[angle],
         observacao:observation||null,
+        consultor:state.data.settings?.ownerName||'Arthur',
         company:state.data.settings?.company||'Achilles Media'
       }})});
       const data=await response.json();
       if(!response.ok) throw new Error(data.error||'IA indisponível');
-      return {text:data.text||base,generated:!!data.text};
+      return {text:data.text?keepGreetingToken(data.text):base,generated:!!data.text};
     }catch(error){
       return {text:base,generated:false,error:error.message};
     }
@@ -899,7 +1013,7 @@
     if (state.settingsTab === "chatbot") return `<div class="setting-section"><div class="card-head"><div><h3 class="card-title">Chatbot</h3><p class="card-subtitle">Use regras sem custo ou conecte Claude por API. A chave permanece no servidor.</p></div></div><div class="form-grid"><div class="form-group"><label class="label">Nome do assistente</label><input class="input" id="bot-name" value="${escapeHtml(s.botName)}" /></div><div class="form-group"><label class="label">Modo atual</label><select class="select" id="assistant-mode"><option value="rules" ${s.assistantMode==="rules"?"selected":""}>Regras gratuitas</option><option value="hybrid" ${s.assistantMode==="hybrid"?"selected":""}>Híbrido com IA</option><option value="ai" ${s.assistantMode==="ai"?"selected":""}>IA completa</option></select></div><div class="form-group full"><label class="label">Horário de atendimento</label><input class="input" id="business-hours" value="${escapeHtml(s.businessHours)}" /></div><div class="form-group full"><label class="label">Frase para atendimento humano</label><input class="input" id="human-handoff" value="${escapeHtml(s.humanHandoff)}" /></div></div><div class="setting-row"><div class="setting-copy"><strong>Trava de atendimento humano</strong><p>Quando o contato pedir uma pessoa, o robô pausa e cria uma pendência.</p></div><button class="switch on"></button></div><button class="btn btn-primary" data-action="save-chatbot">Salvar configurações</button></div>`;
     if (state.settingsTab === "access") return `<div class="setting-section"><div class="card-head"><div><h3 class="card-title">Acesso e segurança</h3><p class="card-subtitle">No modo publicado, use Supabase Auth e políticas RLS.</p></div></div><div class="setting-row"><div class="setting-copy"><strong>Usuário atual</strong><p>Arthur Xavier · Administrador</p></div><span class="tag gold">Ativo</span></div><div class="setting-row"><div class="setting-copy"><strong>Sessão do navegador</strong><p>Encerre o acesso deste dispositivo.</p></div><button class="btn btn-danger btn-sm" data-action="logout">${icon("logout")} Sair</button></div><div class="setting-row"><div class="setting-copy"><strong>Modo de demonstração</strong><p>Dados armazenados localmente. Desative em config.js após configurar o Supabase.</p></div><span class="tag warning">${CFG.demoMode?"Ativo":"Desativado"}</span></div></div>`;
     if (state.settingsTab === "data") return `<div class="setting-section"><div class="card-head"><div><h3 class="card-title">Dados</h3><p class="card-subtitle">Ferramentas para teste e migração.</p></div></div><div class="setting-row"><div class="setting-copy"><strong>Exportar base</strong><p>Baixa todos os registros atuais em JSON.</p></div><button class="btn btn-secondary btn-sm" data-action="export-data">${icon("download")} Exportar</button></div><div class="setting-row"><div class="setting-copy"><strong>Restaurar demonstração</strong><p>Apaga alterações locais e retorna aos dados iniciais.</p></div><button class="btn btn-danger btn-sm" data-action="reset-demo">Restaurar</button></div></div>`;
-    return `<div class="setting-section"><div class="card-head"><div><h3 class="card-title">Configurações gerais</h3><p class="card-subtitle">Identidade e canais principais da Achilles.</p></div></div><div class="form-grid"><div class="form-group full"><label class="label">Empresa</label><input class="input" id="company-name" value="${escapeHtml(s.company)}" /></div><div class="form-group"><label class="label">E-mail de notificações</label><input class="input" id="notification-email" value="${escapeHtml(s.notificationEmail)}" /></div><div class="form-group"><label class="label">Número do WhatsApp</label><input class="input" id="whatsapp-number" value="${escapeHtml(s.whatsappNumber)}" /></div></div><button class="btn btn-primary" style="margin-top:16px" data-action="save-general">Salvar alterações</button></div>`;
+    return `<div class="setting-section"><div class="card-head"><div><h3 class="card-title">Configurações gerais</h3><p class="card-subtitle">Identidade e canais principais da Achilles.</p></div></div><div class="form-grid"><div class="form-group full"><label class="label">Empresa</label><input class="input" id="company-name" value="${escapeHtml(s.company)}" /></div><div class="form-group full"><label class="label">Quem assina as abordagens</label><input class="input" id="owner-name" value="${escapeHtml(s.ownerName||"Arthur")}" /><div class="help">Usado na captação: "Sou o ${escapeHtml(s.ownerName||"Arthur")}, da ${escapeHtml(s.company||"Achilles Media")}".</div></div><div class="form-group"><label class="label">E-mail de notificações</label><input class="input" id="notification-email" value="${escapeHtml(s.notificationEmail)}" /></div><div class="form-group"><label class="label">Número do WhatsApp</label><input class="input" id="whatsapp-number" value="${escapeHtml(s.whatsappNumber)}" /></div></div><button class="btn btn-primary" style="margin-top:16px" data-action="save-general">Salvar alterações</button></div>`;
   }
 
   function connection(initials, name, connected, description, key) {
@@ -1023,7 +1137,7 @@
     document.querySelectorAll("[data-settings-tab]").forEach(b=>b.addEventListener("click",()=>{state.settingsTab=b.dataset.settingsTab;renderCurrentPage();}));
     document.querySelector('[data-action="logout"]')?.addEventListener("click",logout);
     document.querySelector('[data-action="reset-demo"]')?.addEventListener("click",()=>{localStorage.removeItem(STORAGE_KEY);state.data=structuredClone(seed);toast("Demonstração restaurada", "Os dados locais voltaram ao estado inicial.");render();});
-    document.querySelector('[data-action="save-general"]')?.addEventListener("click",()=>{Object.assign(state.data.settings,{company:document.getElementById("company-name").value,notificationEmail:document.getElementById("notification-email").value,whatsappNumber:document.getElementById("whatsapp-number").value});saveData();toast("Configurações salvas", "Os dados gerais foram atualizados.");});
+    document.querySelector('[data-action="save-general"]')?.addEventListener("click",()=>{Object.assign(state.data.settings,{company:document.getElementById("company-name").value,ownerName:document.getElementById("owner-name").value.trim()||"Arthur",notificationEmail:document.getElementById("notification-email").value,whatsappNumber:document.getElementById("whatsapp-number").value});saveData();toast("Configurações salvas", "Os dados gerais foram atualizados.");renderCurrentPage();});
     document.querySelector('[data-action="save-chatbot"]')?.addEventListener("click",()=>{Object.assign(state.data.settings,{botName:document.getElementById("bot-name").value,assistantMode:document.getElementById("assistant-mode").value,businessHours:document.getElementById("business-hours").value,humanHandoff:document.getElementById("human-handoff").value});saveData();toast("Chatbot atualizado", "As configurações foram salvas.");});
     document.querySelectorAll('[data-action="connection-info"]').forEach(b=>b.addEventListener("click",()=>openModal("connection",b.dataset.connection)));
     // O botão de exportar já é vinculado em bindPageEvents. Vincular de novo
@@ -1105,9 +1219,9 @@
       const p=findProspect(id); if(!p) return modalFrame("Preparar abordagem","","<p>Prospect não encontrado.</p>",`<button class="btn btn-primary" data-action="close-modal">Fechar</button>`);
       const wa=whatsappDigits(p);
       return modalFrame("Preparar abordagem",`${p.name} · score ${p.score}`,
-        `<div class="form-group"><label class="label">Mensagem</label><textarea class="textarea approach-editor" id="prospect-approach-text">${escapeHtml(approachText(p))}</textarea><div class="help">Edite à vontade. A mensagem salva passa a ser usada também pelo botão WhatsApp do card.</div></div>
+        `<div class="form-group"><label class="label">Mensagem</label><textarea class="textarea approach-editor" id="prospect-approach-text">${escapeHtml(approachText(p))}</textarea><div class="help">Edite à vontade. A mensagem salva passa a ser usada também pelo botão WhatsApp do card. <strong>{{saudacao}}</strong> vira Bom dia, Boa tarde ou Boa noite na hora do envio; <strong>{{empresa}}</strong> vira o nome do estabelecimento.</div></div>
         <div class="form-group"><label class="label">Observação para o Claude <span class="label-optional">opcional</span></label><textarea class="textarea approach-note" id="prospect-approach-note" placeholder="Ex.: falar que a concorrência da região já tem site; citar que atendem convênio; usar tom mais informal">${escapeHtml(p.approachNote||'')}</textarea><div class="help">O que você escrever aqui vira o ângulo principal da mensagem gerada.</div></div>
-        <div class="prospect-approach-context"><strong>Contexto usado</strong><p>${escapeHtml(`Melhor encaixe: ${p.recommendedService||'Diagnóstico digital'} · Site ${p.siteScore||0} · Digital ${p.digitalScore||0} · IA ${p.automationScore||0} · ${(p.reasons||p.scoreReasons||[]).join(' · ')}`)}</p>${wa?`<p class="approach-target">WhatsApp: +${escapeHtml(wa)}</p>`:`<p class="approach-target warn">Sem celular publicado no Google. Use Enriquecer ou complete o número no CRM antes de enviar.</p>`}</div>`,
+        <div class="prospect-approach-context"><strong>Contexto usado</strong><p>${escapeHtml(`Modelo: ${ANGLE_LABEL[approachAngle(p)]} · saudação agora: ${greeting()} · melhor encaixe: ${p.recommendedService||'Diagnóstico digital'} · Site ${p.siteScore||0} · Digital ${p.digitalScore||0} · IA ${p.automationScore||0} · ${(p.reasons||p.scoreReasons||[]).join(' · ')}`)}</p>${wa?`<p class="approach-target">WhatsApp: +${escapeHtml(wa)}</p>`:`<p class="approach-target warn">Sem celular publicado no Google. Use Enriquecer ou complete o número no CRM antes de enviar.</p>`}</div>`,
         `<button class="btn btn-ghost" data-action="save-prospect-approach" data-prospect="${p.id}">${icon('check')} Salvar</button><button class="btn btn-secondary" data-action="generate-prospect-approach" data-prospect="${p.id}">${icon('spark')} Gerar com Claude</button><button class="btn btn-primary" data-action="open-prospect-whatsapp" data-prospect="${p.id}" ${wa?'':'disabled'}>${icon('send')} Abrir WhatsApp</button>`);
     }
     if(type==="proposal-preview") { const p=state.data.proposals.find(x=>x.id===id); return modalFrame("Proposta comercial",`${p.client} · validade até ${shortDate(p.validUntil)}`,`<div style="padding:8px 0"><span class="eyebrow">Achilles Media</span><h2 style="font-size:28px;margin:14px 0 8px">${escapeHtml(p.service)}</h2><p class="text-muted" style="line-height:1.7">Projeto desenvolvido para posicionar a ${escapeHtml(p.client)} com uma entrega clara, responsiva e orientada a resultado.</p><div class="card card-pad" style="margin-top:18px"><div class="flex justify-between"><span>Investimento do projeto</span><strong class="text-gold" style="font-size:22px">${money(p.value)}</strong></div></div><p class="text-muted" style="font-size:10px;line-height:1.6;margin-top:18px">O texto definitivo poderá ser gerado por IA, mas valores e serviços sempre virão do banco de dados.</p></div>`,`<button class="btn btn-secondary" data-action="close-modal">Fechar</button><button class="btn btn-primary" data-action="download-proposal" data-proposal="${p.id}">${icon("download")} Salvar HTML</button>`); }
