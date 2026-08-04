@@ -150,6 +150,7 @@
     loggedIn: sessionStorage.getItem(SESSION_KEY) === "1",
     mobileOpen: false,
     selectedConversation: "conv_1",
+    inboxView: "list", // no mobile a lista e o chat dividem a mesma tela
     settingsTab: "general",
     data: loadData(),
     modal: null,
@@ -397,7 +398,7 @@
               <div><div class="page-kicker">${kicker}</div><h1 class="page-title">${title}</h1></div>
             </div>
             <div class="top-actions">
-              <button class="btn btn-secondary btn-sm" data-action="quick-lead">${icon("plus")} Novo lead</button>
+              <button class="btn btn-secondary btn-sm quick-lead-btn" data-action="quick-lead" aria-label="Novo lead">${icon("plus")}<span class="quick-lead-label"> Novo lead</span></button>
               <button class="icon-btn" data-action="notifications" aria-label="Notificações">${icon("bell")}</button>
               <button class="avatar-btn" data-action="profile"><span class="avatar">AX</span><span class="avatar-name">Arthur</span></button>
             </div>
@@ -920,12 +921,30 @@
     const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`prospects-${state.prospecting.city.toLowerCase().replace(/\s+/g,'-')}-${todayISO()}.csv`;a.click();URL.revokeObjectURL(url);
   }
 
+  const LEAD_STAGES = [
+    {id:"new",label:"Novos",short:"Novo",color:"#7fa9d8"},
+    {id:"diagnosis",label:"Diagnóstico",short:"Diagnóstico",color:"#e08a3c"},
+    {id:"proposal",label:"Proposta",short:"Proposta",color:"#c9a241"},
+    {id:"negotiation",label:"Negociação",short:"Negociação",color:"#a98cd8"},
+    {id:"won",label:"Fechados",short:"Fechado",color:"#5fc98b"},
+    {id:"lost",label:"Arquivados",short:"Arquivado",color:"#837b6c"}
+  ];
+
   function leadsPage() {
-    const stages = [
-      {id:"new",label:"Novos",color:"#7fa9d8"},{id:"diagnosis",label:"Diagnóstico",color:"#e08a3c"},{id:"proposal",label:"Proposta",color:"#c9a241"},{id:"negotiation",label:"Negociação",color:"#a98cd8"},{id:"won",label:"Fechados",color:"#5fc98b"},{id:"lost",label:"Arquivados",color:"#837b6c"}
-    ];
-    return `<div class="toolbar"><div class="toolbar-left"><div class="search-box">${icon("search")}<input class="input" id="lead-search" placeholder="Buscar empresa, contato ou serviço" /></div><button class="btn btn-secondary btn-sm">${icon("filter")} Filtros</button></div><div class="toolbar-right"><button class="btn btn-secondary btn-sm" data-action="export-data">${icon("download")} Exportar</button><button class="btn btn-primary btn-sm" data-action="new-lead">${icon("plus")} Novo lead</button></div></div>
-      <div class="kanban" id="lead-kanban">${stages.map(stage=>{const leads=state.data.leads.filter(l=>l.stage===stage.id);return `<section class="kanban-column" data-stage="${stage.id}"><div class="kanban-head"><div class="kanban-title"><span class="stage-dot" style="background:${stage.color}"></span>${stage.label}</div><span class="kanban-count">${leads.length}</span></div>${leads.map(leadCard).join("")}</section>`}).join("")}</div>`;
+    return `<div class="toolbar"><div class="toolbar-left"><div class="search-box">${icon("search")}<input class="input" id="lead-search" placeholder="Buscar empresa, contato ou serviço" /></div><button class="btn btn-secondary btn-sm hide-mobile">${icon("filter")} Filtros</button></div><div class="toolbar-right"><button class="btn btn-secondary btn-sm" data-action="export-data">${icon("download")} Exportar</button><button class="btn btn-primary btn-sm" data-action="new-lead">${icon("plus")} Novo lead</button></div></div>
+      <p class="kanban-hint">Toque em um card para ver o lead, mover de etapa ou chamar no WhatsApp. No computador também dá para arrastar entre as colunas.</p>
+      <div class="kanban" id="lead-kanban">${LEAD_STAGES.map(stage=>{const leads=state.data.leads.filter(l=>l.stage===stage.id);return `<section class="kanban-column" data-stage="${stage.id}"><div class="kanban-head"><div class="kanban-title"><span class="stage-dot" style="background:${stage.color}"></span>${stage.label}</div><span class="kanban-count">${leads.length}</span></div>${leads.map(leadCard).join("")}</section>`}).join("")}</div>`;
+  }
+
+  /* Mover etapa a partir do card, sem arrastar: HTML5 drag-and-drop não emite
+     evento nenhum em toque, então no celular o Kanban era só leitura. */
+  function moveLeadStage(id, stage) {
+    const lead=state.data.leads.find(l=>l.id===id); if(!lead || lead.stage===stage) return;
+    const from=stageLabel(lead.stage);
+    lead.stage=stage; lead.lastContact=todayISO();
+    logActivity("Etapa alterada",`${lead.company}: ${from} → ${stageLabel(stage)}.`);
+    saveData(); syncRecord("leads",lead);
+    toast("Etapa atualizada",`${lead.company} foi para ${stageLabel(stage)}.`);
   }
 
   function leadCard(lead) {
@@ -936,10 +955,11 @@
     const selected = state.data.conversations.find(c=>c.id===state.selectedConversation) || state.data.conversations[0];
     if (!selected) return `<div class="empty-state">${icon("message",34)}<h3>Nenhuma conversa</h3><p>As conversas aparecerão aqui quando um canal estiver conectado.</p></div>`;
     const lead = state.data.leads.find(l=>l.id===selected.leadId);
-    return `<article class="card inbox-layout">
+    return `<article class="card inbox-layout" data-inbox-view="${state.inboxView==='chat'?'chat':'list'}">
       <aside class="inbox-list"><div class="inbox-search"><div class="search-box" style="min-width:0">${icon("search")}<input class="input" placeholder="Buscar conversa" /></div></div>${state.data.conversations.map(c=>`<div class="conversation-item ${c.id===selected.id?"active":""}" data-conversation="${c.id}"><div class="conversation-top"><span class="conversation-name">${escapeHtml(c.name)}</span><span class="conversation-time">${escapeHtml(c.lastAt)}</span></div><div class="conversation-preview">${escapeHtml(c.summary)}</div><div class="conversation-meta"><span class="tag ${c.status==="bot"?"gold":c.status==="human"?"info":""}">${c.status==="bot"?"Automático":c.status==="human"?"Humano":"Pausado"}</span>${c.unread?`<span class="tag warning">${c.unread} nova${c.unread>1?"s":""}</span>`:""}</div></div>`).join("")}</aside>
-      <section class="chat-panel"><header class="chat-head"><div class="chat-person"><div class="person-avatar">${selected.name.split(" ").map(x=>x[0]).slice(0,2).join("")}</div><div><strong>${escapeHtml(selected.name)}</strong><span>${escapeHtml(selected.company)}</span></div></div><div class="flex gap-8"><button class="btn btn-ghost btn-sm" data-action="simulate-incoming">${icon("message")} Simular entrada</button><button class="btn btn-secondary btn-sm" data-action="open-wa" data-phone="${selected.phone}">${icon("external")} WhatsApp</button></div></header>
+      <section class="chat-panel"><header class="chat-head"><button class="icon-btn chat-back" data-action="inbox-back" aria-label="Voltar para as conversas">${icon("arrow")}</button><div class="chat-person"><div class="person-avatar">${selected.name.split(" ").map(x=>x[0]).slice(0,2).join("")}</div><div><strong>${escapeHtml(selected.name)}</strong><span>${escapeHtml(selected.company)}</span></div></div><div class="chat-head-actions"><button class="btn btn-ghost btn-sm hide-mobile" data-action="simulate-incoming">${icon("message")} Simular entrada</button><button class="btn btn-secondary btn-sm" data-action="open-wa" data-phone="${selected.phone}">${icon("send")}<span class="hide-mobile"> WhatsApp</span></button></div></header>
         <div class="messages" id="messages-box">${selected.messages.map(m=>`<div class="message ${m.direction}">${escapeHtml(m.text)}<small>${m.direction==="bot"?"Assistente · ":""}${escapeHtml(m.time)}</small></div>`).join("")}</div>
+        <div class="chat-inline-tools"><label class="inline-switch"><button class="switch ${selected.status==="bot"?"on":""}" data-chatbot-toggle="${selected.id}" aria-label="Alternar atendimento automático"></button><span>${selected.status==="bot"?"Atendimento automático":"Atendimento humano"}</span></label><button class="btn btn-ghost btn-sm" data-action="prepare-followup">${icon("spark")} ${state.data.settings.assistantMode!=="rules"?"Sugerir com Claude":"Sugerir resposta"}</button></div>
         <form class="chat-compose" id="chat-form"><div class="quick-actions"><button type="button" class="quick-action" data-quick="Posso te fazer algumas perguntas para entender melhor?">Qualificar</button><button type="button" class="quick-action" data-quick="Vou organizar uma proposta e te envio para avaliação.">Preparar proposta</button><button type="button" class="quick-action" data-quick="Vou assumir o atendimento a partir daqui.">Assumir atendimento</button></div><div class="compose-row"><input class="input" name="message" autocomplete="off" placeholder="Escreva uma mensagem" /><button class="btn btn-primary" type="submit" aria-label="Enviar">${icon("send")}</button></div></form>
       </section>
       <aside class="contact-panel"><div class="contact-section"><div class="contact-label">Contato</div><div class="contact-value"><strong>${escapeHtml(selected.name)}</strong><br>${escapeHtml(selected.phone)}</div></div><div class="contact-section"><div class="contact-label">Interesse</div><div class="contact-value">${escapeHtml(lead?.service || "Não classificado")}</div></div><div class="contact-section"><div class="contact-label">Resumo</div><div class="contact-value text-muted">${escapeHtml(selected.summary)}</div></div><div class="contact-section"><div class="contact-label">Modo de atendimento</div><div class="contact-value"><button class="switch ${selected.status==="bot"?"on":""}" data-chatbot-toggle="${selected.id}"></button></div></div><div class="contact-section"><button class="btn btn-secondary btn-block btn-sm" data-action="prepare-followup">${icon("spark")} ${state.data.settings.assistantMode!=="rules"?"Sugerir com Claude":"Sugerir resposta"}</button></div></aside>
@@ -984,7 +1004,7 @@
 
   function automationsPage() {
     const aiOn=state.data.settings.assistantMode!=="rules";
-    return `<section class="hero" style="min-height:190px"><div class="hero-grid" style="min-height:125px"><div><span class="eyebrow">Integrações nativas</span><h2 style="font-size:38px">Menos peças. <span>Mais controle.</span></h2><p>Captação, IA, banco e canais ficam ligados diretamente ao Achilles Command. Nenhum Docker ou orquestrador externo é necessário para a operação inicial.</p></div><div class="hero-actions"><button class="btn btn-primary" data-route="prospecting">${icon("target")} Abrir captação</button><button class="btn btn-secondary" data-action="open-integration-docs">${icon("external")} Guia de implantação</button></div></div></section>
+    return `<section class="hero hero-compact"><div class="hero-grid hero-grid-compact"><div><span class="eyebrow">Integrações nativas</span><h2 class="hero-title-sm">Menos peças. <span>Mais controle.</span></h2><p>Captação, IA, banco e canais ficam ligados diretamente ao Achilles Command. Nenhum Docker ou orquestrador externo é necessário para a operação inicial.</p></div><div class="hero-actions"><button class="btn btn-primary" data-route="prospecting">${icon("target")} Abrir captação</button><button class="btn btn-secondary" data-action="open-integration-docs">${icon("external")} Guia de implantação</button></div></div></section>
       <div class="grid grid-2 mt-18">
         ${integrationCard('target','Captação nativa','Ativa','Busca local, score, contatos, mapa e CSV.','gold')}
         ${integrationCard('database','Supabase',CFG.demoMode?'Configurar':'Ativo','Banco, autenticação e sincronização.',CFG.demoMode?'warning':'gold')}
@@ -1051,24 +1071,29 @@
     document.querySelectorAll(".lead-card[draggable]").forEach(card=>{
       card.addEventListener("dragstart",()=>{dragged=card.dataset.leadId;card.classList.add("dragging");});
       card.addEventListener("dragend",()=>{card.classList.remove("dragging");document.querySelectorAll(".kanban-column").forEach(c=>c.classList.remove("drag-over"));});
-      card.addEventListener("dblclick",()=>openModal("lead-details", card.dataset.leadId));
+      // Clique simples: dblclick não existe em toque. Arrastar não dispara
+      // click, então no desktop as duas formas convivem.
+      card.addEventListener("click",()=>openModal("lead-details", card.dataset.leadId));
     });
     document.querySelectorAll(".kanban-column[data-stage]").forEach(column=>{
       column.addEventListener("dragover",e=>{e.preventDefault();column.classList.add("drag-over");});
       column.addEventListener("dragleave",()=>column.classList.remove("drag-over"));
-      column.addEventListener("drop",e=>{e.preventDefault();if(!dragged)return;const lead=state.data.leads.find(l=>l.id===dragged);if(lead){const from=stageLabel(lead.stage);lead.stage=column.dataset.stage;lead.lastContact=todayISO();logActivity("Etapa alterada",`${lead.company}: ${from} → ${stageLabel(lead.stage)}.`);saveData();syncRecord("leads",lead);toast("Etapa atualizada",`${lead.company} foi movida para ${stageLabel(lead.stage)}.`);renderCurrentPage();}});
+      column.addEventListener("drop",e=>{e.preventDefault();if(!dragged)return;moveLeadStage(dragged,column.dataset.stage);renderCurrentPage();});
     });
     document.getElementById("lead-search")?.addEventListener("input",e=>{const q=e.target.value.toLowerCase();document.querySelectorAll(".lead-card").forEach(card=>{card.style.display=card.textContent.toLowerCase().includes(q)?"":"none";});});
   }
 
   function bindMessages() {
-    document.querySelectorAll("[data-conversation]").forEach(item=>item.addEventListener("click",()=>{state.selectedConversation=item.dataset.conversation;const c=state.data.conversations.find(x=>x.id===state.selectedConversation);if(c)c.unread=0;saveData();renderCurrentPage();}));
+    document.querySelectorAll("[data-conversation]").forEach(item=>item.addEventListener("click",()=>{state.selectedConversation=item.dataset.conversation;state.inboxView="chat";const c=state.data.conversations.find(x=>x.id===state.selectedConversation);if(c)c.unread=0;saveData();renderCurrentPage();}));
+    document.querySelector('[data-action="inbox-back"]')?.addEventListener("click",()=>{state.inboxView="list";renderCurrentPage();});
     document.querySelectorAll("[data-quick]").forEach(btn=>btn.addEventListener("click",()=>{const input=document.querySelector('#chat-form [name="message"]');input.value=btn.dataset.quick;input.focus();}));
     document.getElementById("chat-form")?.addEventListener("submit",e=>{e.preventDefault();const input=e.target.message;const text=input.value.trim();if(!text)return;const c=state.data.conversations.find(x=>x.id===state.selectedConversation);c.messages.push({id:uid("m"),direction:"out",text,time:new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})});c.summary=text;c.lastAt="agora";input.value="";saveData();renderCurrentPage();setTimeout(()=>document.getElementById("messages-box")?.scrollTo(0,99999),0);});
     document.querySelector('[data-action="simulate-incoming"]')?.addEventListener("click",()=>openModal("incoming"));
     document.querySelector('[data-action="open-wa"]')?.addEventListener("click",e=>openWhatsApp(e.currentTarget.dataset.phone,""));
-    document.querySelector("[data-chatbot-toggle]")?.addEventListener("click",e=>{const c=state.data.conversations.find(x=>x.id===e.currentTarget.dataset.chatbotToggle);c.status=c.status==="bot"?"human":"bot";saveData();renderCurrentPage();});
-    document.querySelector('[data-action="prepare-followup"]')?.addEventListener("click",suggestSupportReply);
+    // querySelectorAll: os controles existem no painel lateral e na faixa do
+    // chat, porque o painel some antes mesmo do celular, em 1180px.
+    document.querySelectorAll("[data-chatbot-toggle]").forEach(b=>b.addEventListener("click",e=>{const c=state.data.conversations.find(x=>x.id===e.currentTarget.dataset.chatbotToggle);c.status=c.status==="bot"?"human":"bot";saveData();renderCurrentPage();}));
+    document.querySelectorAll('[data-action="prepare-followup"]').forEach(b=>b.addEventListener("click",suggestSupportReply));
   }
 
   async function suggestSupportReply() {
@@ -1224,8 +1249,8 @@
         <div class="prospect-approach-context"><strong>Contexto usado</strong><p>${escapeHtml(`Modelo: ${ANGLE_LABEL[approachAngle(p)]} · saudação agora: ${greeting()} · melhor encaixe: ${p.recommendedService||'Diagnóstico digital'} · Site ${p.siteScore||0} · Digital ${p.digitalScore||0} · IA ${p.automationScore||0} · ${(p.reasons||p.scoreReasons||[]).join(' · ')}`)}</p>${wa?`<p class="approach-target">WhatsApp: +${escapeHtml(wa)}</p>`:`<p class="approach-target warn">Sem celular publicado no Google. Use Enriquecer ou complete o número no CRM antes de enviar.</p>`}</div>`,
         `<button class="btn btn-ghost" data-action="save-prospect-approach" data-prospect="${p.id}">${icon('check')} Salvar</button><button class="btn btn-secondary" data-action="generate-prospect-approach" data-prospect="${p.id}">${icon('spark')} Gerar com Claude</button><button class="btn btn-primary" data-action="open-prospect-whatsapp" data-prospect="${p.id}" ${wa?'':'disabled'}>${icon('send')} Abrir WhatsApp</button>`);
     }
-    if(type==="proposal-preview") { const p=state.data.proposals.find(x=>x.id===id); return modalFrame("Proposta comercial",`${p.client} · validade até ${shortDate(p.validUntil)}`,`<div style="padding:8px 0"><span class="eyebrow">Achilles Media</span><h2 style="font-size:28px;margin:14px 0 8px">${escapeHtml(p.service)}</h2><p class="text-muted" style="line-height:1.7">Projeto desenvolvido para posicionar a ${escapeHtml(p.client)} com uma entrega clara, responsiva e orientada a resultado.</p><div class="card card-pad" style="margin-top:18px"><div class="flex justify-between"><span>Investimento do projeto</span><strong class="text-gold" style="font-size:22px">${money(p.value)}</strong></div></div><p class="text-muted" style="font-size:10px;line-height:1.6;margin-top:18px">O texto definitivo poderá ser gerado por IA, mas valores e serviços sempre virão do banco de dados.</p></div>`,`<button class="btn btn-secondary" data-action="close-modal">Fechar</button><button class="btn btn-primary" data-action="download-proposal" data-proposal="${p.id}">${icon("download")} Salvar HTML</button>`); }
-    if(type==="lead-details") { const l=state.data.leads.find(x=>x.id===id); return modalFrame(l.company,`${l.contact} · ${l.phone}`,`<div class="grid grid-2"><div class="card card-pad"><div class="contact-label">Serviço</div><div class="contact-value">${escapeHtml(l.service)}</div></div><div class="card card-pad"><div class="contact-label">Valor</div><div class="contact-value">${money(l.value)}</div></div><div class="card card-pad"><div class="contact-label">Score</div><div class="contact-value">${l.score}</div></div><div class="card card-pad"><div class="contact-label">Próxima ação</div><div class="contact-value">${escapeHtml(l.nextAction)}</div></div></div><div class="contact-section"><div class="contact-label">Contexto</div><div class="contact-value text-muted">${escapeHtml(l.notes)}</div></div>`,`<button class="btn btn-secondary" data-action="close-modal">Fechar</button><button class="btn btn-primary" data-action="manual-message" data-lead="${l.id}">${icon("external")} Abrir WhatsApp</button>`); }
+    if(type==="proposal-preview") { const p=state.data.proposals.find(x=>x.id===id); return modalFrame("Proposta comercial",`${p.client} · validade até ${shortDate(p.validUntil)}`,`<div style="padding:8px 0"><span class="eyebrow">Achilles Media</span><h2 class="proposal-preview-title">${escapeHtml(p.service)}</h2><p class="text-muted" style="line-height:1.7">Projeto desenvolvido para posicionar a ${escapeHtml(p.client)} com uma entrega clara, responsiva e orientada a resultado.</p><div class="card card-pad" style="margin-top:18px"><div class="flex justify-between"><span>Investimento do projeto</span><strong class="text-gold" style="font-size:22px">${money(p.value)}</strong></div></div><p class="text-muted" style="font-size:10px;line-height:1.6;margin-top:18px">O texto definitivo poderá ser gerado por IA, mas valores e serviços sempre virão do banco de dados.</p></div>`,`<button class="btn btn-secondary" data-action="close-modal">Fechar</button><button class="btn btn-primary" data-action="download-proposal" data-proposal="${p.id}">${icon("download")} Salvar HTML</button>`); }
+    if(type==="lead-details") { const l=state.data.leads.find(x=>x.id===id); if(!l) return modalFrame("Lead","","<p>Lead não encontrado.</p>",`<button class="btn btn-primary" data-action="close-modal">Fechar</button>`); return modalFrame(l.company,`${l.contact}${l.phone?` · ${l.phone}`:''}`,`<div class="form-group"><label class="label">Etapa do pipeline</label><div class="stage-picker">${LEAD_STAGES.map(s=>`<button type="button" class="stage-chip ${l.stage===s.id?'active':''}" data-move-stage="${s.id}" data-lead="${l.id}" aria-pressed="${l.stage===s.id?'true':'false'}"><span class="stage-dot" style="background:${s.color}"></span>${escapeHtml(s.short)}</button>`).join('')}</div></div><div class="grid grid-2"><div class="card card-pad"><div class="contact-label">Serviço</div><div class="contact-value">${escapeHtml(l.service)}</div></div><div class="card card-pad"><div class="contact-label">Valor</div><div class="contact-value">${money(l.value)}</div></div><div class="card card-pad"><div class="contact-label">Score</div><div class="contact-value">${l.score}</div></div><div class="card card-pad"><div class="contact-label">Próxima ação</div><div class="contact-value">${escapeHtml(l.nextAction)}</div></div></div><div class="contact-section"><div class="contact-label">Contexto</div><div class="contact-value text-muted">${escapeHtml(l.notes)}</div></div>`,`<button class="btn btn-secondary" data-action="close-modal">Fechar</button><button class="btn btn-primary" data-action="manual-message" data-lead="${l.id}" ${l.phone?'':'disabled'}>${icon("send")} Abrir WhatsApp</button>`); }
     if(type==="connection") { const info={supabase:["Supabase","Informe URL e chave pública no config.js, execute o schema SQL e desative demoMode."],whatsapp:["WhatsApp Cloud API","Opcional. O envio assistido já funciona sem API. Quando ativar a Cloud API, configure as variáveis Meta no Netlify."],ai:["Claude API","Defina AI_PROVIDER=anthropic, AI_MODEL=claude-haiku-4-5 e ANTHROPIC_API_KEY no Netlify. Nenhuma chave fica no navegador."]}[id]; return modalFrame(info[0],"Conexão preparada para ativação gradual.",`<div class="card card-pad"><div class="flex gap-12"><span class="metric-icon">${icon("link")}</span><div><strong>${info[0]}</strong><p class="text-muted" style="font-size:11px;line-height:1.65">${info[1]}</p></div></div></div><p class="text-muted" style="font-size:10px;line-height:1.6;margin-top:14px">Consulte docs/GUIA_IMPLEMENTACAO.md para o passo a passo completo.</p>`,`<button class="btn btn-primary" data-action="close-modal">Entendi</button>`); }
     return modalFrame("Achilles Command","",`<p>Conteúdo indisponível.</p>`,`<button class="btn btn-primary" data-action="close-modal">Fechar</button>`);
   }
@@ -1254,7 +1279,8 @@
       else toast('Claude ainda não respondeu',result.error||'Mantive a abordagem padrão. Configure AI_PROVIDER e ANTHROPIC_API_KEY no Netlify para gerar com o Claude.');
     });
     document.querySelector('[data-action="open-prospect-whatsapp"]')?.addEventListener("click",e=>{const pid=e.currentTarget.dataset.prospect;saveApproachDraft(pid);openProspectWhatsApp(pid,document.getElementById('prospect-approach-text')?.value||'');closeModal();});
-    document.querySelector('[data-action="manual-message"]')?.addEventListener("click",e=>{const l=state.data.leads.find(x=>x.id===e.currentTarget.dataset.lead);openWhatsApp(l.phone,`Olá, ${l.contact.split(" ")[0]}. Posso te atualizar sobre o próximo passo da ${l.company}?`,l.id);});
+    document.querySelector('[data-action="manual-message"]')?.addEventListener("click",e=>{const l=state.data.leads.find(x=>x.id===e.currentTarget.dataset.lead);openWhatsApp(l.phone,`${greeting()}, ${l.contact.split(" ")[0]}. Posso te atualizar sobre o próximo passo da ${l.company}?`,l.id);});
+    document.querySelectorAll("[data-move-stage]").forEach(b=>b.addEventListener("click",()=>{moveLeadStage(b.dataset.lead,b.dataset.moveStage);closeModal();renderCurrentPage();}));
   }
 
   function ruleReply(text) {
@@ -1285,7 +1311,7 @@
   }
 
   function downloadProposal(id) {
-    const p=state.data.proposals.find(x=>x.id===id);const html=`<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>Proposta ${p.client}</title><style>body{font-family:Inter,"Helvetica Neue",Arial,sans-serif;max-width:760px;margin:60px auto;padding:0 28px;color:#1a1713;line-height:1.65;-webkit-font-smoothing:antialiased}.brand{color:#8a6a1f;font-weight:700;font-size:11px;letter-spacing:.18em;font-family:ui-monospace,Menlo,Consolas,monospace}.brand::after{content:"";display:block;width:44px;height:2px;margin-top:14px;background:linear-gradient(90deg,#c9a241,#e3c877)}h1{margin:26px 0 0;font-size:42px;line-height:1.05;letter-spacing:-.035em;font-weight:700}p{color:#4a453d}.value{margin-top:34px;padding:24px 26px;background:#faf3e0;border-left:3px solid #c9a241;border-radius:4px 16px 16px 4px;font-size:24px;font-weight:700;letter-spacing:-.02em;color:#1a1713}.meta{margin-top:22px;color:#7a7367;font-size:12px;letter-spacing:.04em}</style><body><div class="brand">ACHILLES MEDIA</div><h1>${escapeHtml(p.service)}</h1><p>Proposta preparada para ${escapeHtml(p.client)}.</p><p>Construiremos uma entrega orientada a posicionamento, eficiência e resultado.</p><div class="value">Investimento: ${money(p.value)}</div><p class="meta">Validade da proposta: ${shortDate(p.validUntil)}</p></body></html>`;const blob=new Blob([html],{type:"text/html"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`proposta-${p.client.toLowerCase().replace(/\s+/g,"-")}.html`;a.click();URL.revokeObjectURL(url);
+    const p=state.data.proposals.find(x=>x.id===id);const html=`<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Proposta ${p.client}</title><style>body{font-family:Inter,"Helvetica Neue",Arial,sans-serif;max-width:760px;margin:60px auto;padding:0 28px;color:#1a1713;line-height:1.65;-webkit-font-smoothing:antialiased}.brand{color:#8a6a1f;font-weight:700;font-size:11px;letter-spacing:.18em;font-family:ui-monospace,Menlo,Consolas,monospace}.brand::after{content:"";display:block;width:44px;height:2px;margin-top:14px;background:linear-gradient(90deg,#c9a241,#e3c877)}h1{margin:26px 0 0;font-size:42px;line-height:1.05;letter-spacing:-.035em;font-weight:700}p{color:#4a453d}.value{margin-top:34px;padding:24px 26px;background:#faf3e0;border-left:3px solid #c9a241;border-radius:4px 16px 16px 4px;font-size:24px;font-weight:700;letter-spacing:-.02em;color:#1a1713}.meta{margin-top:22px;color:#7a7367;font-size:12px;letter-spacing:.04em}@media(max-width:520px){body{margin:34px auto;padding:0 20px}h1{font-size:29px}.value{font-size:20px;padding:18px 20px}}</style><body><div class="brand">ACHILLES MEDIA</div><h1>${escapeHtml(p.service)}</h1><p>Proposta preparada para ${escapeHtml(p.client)}.</p><p>Construiremos uma entrega orientada a posicionamento, eficiência e resultado.</p><div class="value">Investimento: ${money(p.value)}</div><p class="meta">Validade da proposta: ${shortDate(p.validUntil)}</p></body></html>`;const blob=new Blob([html],{type:"text/html"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`proposta-${p.client.toLowerCase().replace(/\s+/g,"-")}.html`;a.click();URL.revokeObjectURL(url);
   }
 
   async function logout() {

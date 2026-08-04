@@ -65,6 +65,18 @@ A abordagem tem três modelos sobre a mesma estrutura validada: genérico, site 
 
 Na abordagem, a tarefa `outreach` recebe os sinais do prospect, o modelo escolhido e a observação escrita no editor, que entra no prompt como ângulo principal da mensagem. Quando a IA não está configurada, o Command mantém a abordagem padrão e avisa — nunca apresenta o texto base como se tivesse vindo do modelo. A mensagem aprovada fica em `prospects.approach_message` e é a que o botão de WhatsApp usa.
 
+## Mobile
+
+A camada responsiva fica no fim de `styles.css`. Três correções são de comportamento, não de layout, e por isso vivem em `app.js`:
+
+- o Kanban dependia de HTML5 drag-and-drop, que não emite evento nenhum em toque. O card passou a abrir no clique e o modal do lead ganhou seletor de etapa. Arrastar continua funcionando no computador;
+- a lista de conversas era escondida com `display:none` abaixo de 650px, o que impedia escolher com quem falar. Virou mestre/detalhe controlado por `state.inboxView`;
+- o painel de contato some em 1180px levando junto o interruptor de atendimento e o "Sugerir com Claude". Os dois foram replicados numa faixa dentro do chat, e os bindings passaram a usar `querySelectorAll`.
+
+Alvos de toque crescem por `@media (pointer: coarse)`, e não por largura: o critério é o dedo, não a tela. Campos usam 16px no mobile porque o Safari dá zoom ao focar fonte menor, e o zoom não volta sozinho. Alturas de tela usam `dvh`, já que `vh` no celular conta a barra de endereço que some ao rolar.
+
+O HTML de proposta gerado por `downloadProposal` também é responsivo e ganhou `<meta viewport>` — ele é aberto pelo cliente, quase sempre no celular.
+
 ## WhatsApp
 
 Na fase atual, `wa.me` abre o WhatsApp com texto preenchido. `whatsapp-send.mjs` fica preparado para Cloud API futura.

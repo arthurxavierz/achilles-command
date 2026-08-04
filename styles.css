@@ -847,12 +847,9 @@ h1, h2, h3, h4,
   .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
   .hero { padding: 22px; }
   .hero h2 { font-size: 34px; }
-  .inbox-layout { grid-template-columns: 1fr; }
-  .inbox-list { display: none; }
   .form-grid { grid-template-columns: 1fr; }
   .form-group.full { grid-column: auto; }
   .avatar-name { display: none; }
-  .top-actions .btn-secondary { display: none; }
   .search-box { min-width: 100%; }
   .toolbar-left, .toolbar-right { width: 100%; }
   .toolbar-right .btn { flex: 1; }
@@ -966,3 +963,207 @@ h1, h2, h3, h4,
 .prospect-service-scores .recommended { border-color: var(--gold-border); background: var(--gold-soft); }
 .prospect-service-scores .recommended strong { color: var(--gold-light); }
 @media (max-width: 640px) { .prospect-service-scores { grid-template-columns: repeat(3, 1fr); } .prospect-service-scores .recommended { grid-column: 1 / -1; } }
+
+/* ==========================================================================
+   Mobile — captação, disparo e CRM no celular
+
+   O app já era fluido, mas três coisas o tornavam inoperante em toque:
+   o Kanban dependia de drag-and-drop, a lista de conversas era escondida
+   e os controles de atendimento viviam num painel que sumia em 1180px.
+   A correção de layout está aqui; a de comportamento, em app.js.
+   ========================================================================== */
+
+/* --- utilitários compartilhados ----------------------------------------- */
+.hide-mobile { display: inline-flex; }
+.kanban-hint { display: none; }
+.chat-back { display: none; transform: rotate(180deg); flex: 0 0 auto; }
+.chat-head-actions { display: flex; align-items: center; gap: 8px; }
+.chat-inline-tools { display: none; }
+.inline-switch { display: inline-flex; align-items: center; gap: 9px; font-size: 10.5px; color: var(--text-soft); }
+
+/* --- seletor de etapa no modal do lead ---------------------------------- */
+.stage-picker { display: flex; flex-wrap: wrap; gap: 7px; }
+.stage-chip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; border-radius: 999px;
+  border: 1px solid var(--border); background: rgba(245, 241, 230, 0.025); color: var(--text-soft);
+  font-family: inherit; font-size: 11px; cursor: pointer;
+  transition: border-color .16s ease, background .16s ease, color .16s ease;
+}
+.stage-chip:hover { color: var(--text); border-color: var(--border-strong); }
+.stage-chip.active { color: var(--gold-light); border-color: rgba(201, 162, 65, 0.34); background: var(--gold-soft); }
+
+/* --- alturas reais em navegador móvel -----------------------------------
+   100vh no iOS/Android conta a barra de endereço que some ao rolar, então
+   o rodapé da tela fica sempre inacessível. dvh acompanha o viewport real. */
+@supports (height: 100dvh) {
+  body, .app-shell, .main, .login-page { min-height: 100dvh; }
+}
+
+/* --- entalhe e barra inferior do iPhone ---------------------------------- */
+@supports (padding: max(0px)) {
+  .sidebar { padding-left: max(16px, env(safe-area-inset-left)); }
+  .topbar { padding-right: max(17px, env(safe-area-inset-right)); }
+  .content {
+    padding-bottom: max(60px, calc(50px + env(safe-area-inset-bottom)));
+    padding-left: max(30px, env(safe-area-inset-left));
+    padding-right: max(30px, env(safe-area-inset-right));
+  }
+}
+
+/* --- alvos de toque ------------------------------------------------------
+   Ponteiro grosso (dedo) precisa de ~44px. Mouse não precisa, e aumentar
+   tudo no desktop estragaria a densidade que o painel tem hoje. */
+@media (pointer: coarse) {
+  .btn { min-height: 46px; }
+  .btn-sm { min-height: 44px; padding: 10px 14px; }
+  .icon-btn, .avatar-btn, .close-btn { min-width: 44px; min-height: 44px; }
+  .nav-item { min-height: 48px; }
+  .filter-chip, .stage-chip, .quick-action, .settings-nav button { min-height: 40px; }
+  .conversation-item { padding: 16px 15px; }
+  .lead-card { padding: 15px; }
+  .switch { width: 46px; height: 26px; }
+  .switch::after { width: 18px; height: 18px; }
+  .switch.on::after { left: 23px; }
+  /* área de toque maior que o desenho, sem mexer no desenho */
+  .switch::before { content: ""; position: absolute; inset: -11px; border-radius: 99px; }
+  .prospect-links a { display: inline-block; padding: 6px 0; }
+}
+
+/* --- teclado do iOS ------------------------------------------------------
+   O Safari dá zoom ao focar campo com fonte menor que 16px, e o zoom não
+   volta sozinho. Só no mobile: no desktop 14px é a densidade do projeto. */
+@media (max-width: 860px) {
+  .input, .select, .textarea { font-size: 16px; }
+  .input, .select { height: 46px; }
+}
+
+/* --- tablet e celular ---------------------------------------------------- */
+@media (max-width: 860px) {
+  .hide-mobile { display: none !important; }
+  .quick-lead-label { display: none; }
+  .quick-lead-btn { padding: 0; width: 44px; justify-content: center; }
+  .top-actions { gap: 7px; }
+  .page-title { font-size: 20px; }
+
+  /* Kanban: as colunas viram um carrossel com encaixe, uma por vez. */
+  .kanban-hint { display: block; margin: 0 0 14px; color: var(--muted); font-size: 10.5px; line-height: 1.6; }
+  .kanban {
+    grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 84%;
+    scroll-snap-type: x mandatory; overscroll-behavior-x: contain;
+    margin-inline: -16px; padding-inline: 16px;
+  }
+  .kanban-column { scroll-snap-align: center; }
+
+  /* Conversas: lista e chat dividem a tela, um de cada vez. */
+  .inbox-layout { grid-template-columns: 1fr; min-height: 0; height: calc(100dvh - 210px); }
+  .inbox-layout[data-inbox-view="list"] .chat-panel { display: none; }
+  .inbox-layout[data-inbox-view="chat"] .inbox-list { display: none; }
+  .inbox-list { border-right: 0; overflow: auto; }
+  .chat-back { display: grid; }
+  .chat-head { padding: 0 12px; gap: 10px; }
+  .chat-person span { display: none; }
+  .messages { padding: 16px; }
+  .message { max-width: 84%; }
+}
+
+/* Os controles de atendimento acompanham o sumiço do painel lateral. */
+@media (max-width: 1180px) {
+  .chat-inline-tools {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 10px 14px; border-top: 1px solid var(--border); background: var(--panel);
+  }
+}
+
+/* --- celular ------------------------------------------------------------- */
+@media (max-width: 640px) {
+  .content { padding-left: 14px; padding-right: 14px; }
+  .kanban { margin-inline: -14px; padding-inline: 14px; grid-auto-columns: 88%; }
+
+  /* Busca da captação: campos curtos lado a lado, o resto em linha cheia. */
+  .prospect-form { grid-template-columns: repeat(3, 1fr); gap: 9px; }
+  .prospect-form .form-group:not(.small) { grid-column: 1 / -1; }
+  .prospect-search-btn { grid-column: 1 / -1; }
+
+  /* Ações do card: grade 2x2 com o WhatsApp ocupando a linha inteira. */
+  .prospect-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .prospect-actions .btn { width: 100%; }
+  .prospect-actions [data-action="prospect-whatsapp"] { grid-column: 1 / -1; }
+
+  .prospect-card { padding: 14px; }
+  .prospect-score { width: 46px; height: 46px; border-radius: 12px; }
+  .prospect-score strong { font-size: 16px; }
+  .metric-card { min-height: 0; }
+  .metric-value { font-size: 24px; }
+  .modal-head h3 { font-size: 17px; }
+  .toolbar-right .btn { flex: 1; }
+}
+
+/* --- filtros da captação em coluna --------------------------------------- */
+@media (max-width: 720px) {
+  .prospect-filters { flex-direction: column; align-items: stretch; gap: 11px; padding: 13px 14px; }
+  .filter-group { flex-wrap: wrap; }
+  .filter-clear { margin-left: 0; align-self: flex-start; padding-left: 0; }
+}
+
+/* --- modais como folha inferior ------------------------------------------
+   Colado embaixo, o modal fica ao alcance do polegar e o teclado empurra
+   menos conteúdo para fora da tela do que um diálogo centralizado. */
+@media (max-width: 720px) {
+  .modal-backdrop { place-items: end center; padding: 0; }
+  .modal {
+    width: 100%; max-height: 92dvh; border-radius: 22px 22px 0 0;
+    border-bottom: 0; animation: sheetUp .22s ease;
+  }
+  .modal-head, .modal-body, .modal-actions { padding-left: 16px; padding-right: 16px; }
+  .modal-actions {
+    position: sticky; bottom: 0; flex-direction: column-reverse; gap: 8px;
+    background: #100e0c; padding-bottom: max(16px, env(safe-area-inset-bottom));
+  }
+  .modal-actions .btn { width: 100%; }
+  .approach-editor { min-height: 190px; }
+}
+@keyframes sheetUp { from { transform: translateY(14px); opacity: .6; } to { transform: none; opacity: 1; } }
+
+/* --- telas bem estreitas -------------------------------------------------- */
+@media (max-width: 380px) {
+  .prospect-form { grid-template-columns: 1fr 1fr; }
+  .prospect-service-scores { grid-template-columns: repeat(3, 1fr); }
+  .prospect-actions { grid-template-columns: 1fr; }
+  .prospect-signals .tag { font-size: 9px; }
+  .page-title { font-size: 18px; }
+}
+
+/* --- títulos que estavam presos em style inline -------------------------
+   Estilo inline vence media query, então esses tamanhos ficavam grandes no
+   celular por mais regras responsivas que existissem. Viraram classe. */
+.hero-compact { min-height: 190px; }
+.hero-grid-compact { min-height: 125px; }
+.hero-title-sm { font-size: 38px; }
+.proposal-preview-title { font-size: 28px; margin: 14px 0 8px; }
+
+/* --- cabeçalhos de seção nas toolbars ------------------------------------
+   Propostas, Projetos e Campanhas usam um div sem classe no lugar de
+   .toolbar-left; sem isso o título espremia o botão em telas estreitas. */
+.toolbar > div:not([class]) { min-width: 0; }
+
+@media (max-width: 650px) {
+  .hero-title-sm { font-size: 27px; }
+  .proposal-preview-title { font-size: 22px; }
+  .hero-compact, .hero-grid-compact { min-height: 0; }
+  .toolbar > div:not([class]) { flex: 1 1 100%; }
+  .toolbar > .btn { width: 100%; }
+}
+
+/* --- Assistente ---------------------------------------------------------
+   650px de altura mínima é mais do que a tela inteira de um celular, o que
+   empurrava o campo de escrever para fora do alcance. */
+@media (max-width: 860px) {
+  .assistant-shell { min-height: 0; height: calc(100dvh - 210px); }
+  .assistant-chat { padding: 16px; }
+  .assistant-compose { padding: 12px; }
+}
+
+/* --- tabelas ------------------------------------------------------------
+   Continuam rolando na horizontal, com inércia no iOS e sem arrastar a
+   página junto. */
+.table-wrap { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
