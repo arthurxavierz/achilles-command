@@ -233,7 +233,7 @@
       scoreBand: "score_band", scoreReasons: "score_reasons", lastEnrichedAt: "last_enriched_at", crmLeadId: "crm_lead_id",
       siteScore: "site_score", digitalScore: "digital_score", automationScore: "automation_score", recommendedService: "recommended_service",
       userRatingCount: "user_rating_count", businessStatus: "business_status", projectId: "project_id",
-      approachMessage: "approach_message", approachNote: "approach_note"
+      approachMessage: "approach_message", approachNote: "approach_note", contactedAt: "contacted_at"
     };
     for (const [from, to] of Object.entries(mappings)) {
       if (Object.prototype.hasOwnProperty.call(copy, from)) { copy[to] = copy[from]; delete copy[from]; }
@@ -244,7 +244,7 @@
     // pela interface, mas eles não devem virar colunas acidentais no banco.
     const allowed = {
       leads:['id','organization_id','company','contact','phone','email','service','source','stage','score','value','last_contact','next_action','notes','created_at'],
-      prospects:['id','organization_id','source','source_id','name','category','address','phone','whatsapp','email','website','instagram','facebook','latitude','longitude','distance_km','map_url','google_url','rating','user_rating_count','business_status','score','score_band','score_reasons','site_score','digital_score','automation_score','recommended_service','approach_message','approach_note','crm_lead_id','last_enriched_at','created_at'],
+      prospects:['id','organization_id','source','source_id','name','category','address','phone','whatsapp','email','website','instagram','facebook','latitude','longitude','distance_km','map_url','google_url','rating','user_rating_count','business_status','score','score_band','score_reasons','site_score','digital_score','automation_score','recommended_service','approach_message','approach_note','contacted_at','crm_lead_id','last_enriched_at','created_at'],
       conversations:['id','organization_id','lead_id','name','company','phone','status','unread','last_at','summary','messages','created_at'],
       campaigns:['id','organization_id','name','status','audience','message','total','sent','replies','created_at'],
       projects:['id','organization_id','client','name','status','progress','due','value','description','created_at'],
@@ -281,6 +281,7 @@
     if (row.business_status && !copy.businessStatus) copy.businessStatus = row.business_status;
     if (row.approach_message && !copy.approachMessage) copy.approachMessage = row.approach_message;
     if (row.approach_note && !copy.approachNote) copy.approachNote = row.approach_note;
+    if (row.contacted_at && !copy.contactedAt) copy.contactedAt = row.contacted_at;
     if (row.last_enriched_at && !row.lastEnrichedAt) copy.lastEnrichedAt = row.last_enriched_at;
     if (row.crm_lead_id && !row.crmLeadId) copy.crmLeadId = row.crm_lead_id;
     return copy;
@@ -521,7 +522,48 @@
         ${p.view==='list'?'':`<aside class="card prospect-map-wrap"><div id="prospect-map" class="prospect-map"></div><div class="prospect-map-note">Mapa de apoio: OpenStreetMap · dados comerciais: Google Places</div></aside>`}
       </div>` : `<div class="empty-state card">${icon('filter',34)}<h3>Nenhuma empresa passa nos filtros atuais</h3><p>A busca trouxe ${all.length} ${all.length===1?'empresa':'empresas'}, mas os filtros de contato e encaixe deixaram a lista vazia. Remova um filtro para voltar a ver os resultados.</p><button class="btn btn-secondary btn-sm" data-action="clear-prospect-filters" style="margin-top:16px">${icon('close',13)} Limpar filtros</button></div>`}`
       : (!p.loading && p.query ? `<div class="empty-state card">${icon('target',34)}<h3>Nenhum resultado nessa busca</h3><p>Tente aumentar o raio ou usar um segmento mais amplo, como “clínicas” em vez de uma especialidade muito específica.</p></div>` : `<div class="empty-state card">${icon('target',34)}<h3>Comece por um segmento e uma cidade</h3><p>Exemplo: “clínicas” em “Uberaba”. Os resultados já chegam com contato disponível, score e atalhos de abordagem.</p></div>`)}
+      ${prospectBridge(results)}
     </div>`;
+  }
+
+  /* Ponte para a extensão Achilles Prospecta. Publica a lista visível como
+     JSON dentro da própria página; a extensão lê e monta a fila. É só leitura
+     — quem altera o estado continua sendo o Command, via os eventos abaixo.
+     A mensagem sai com {{saudacao}} ainda por resolver, de propósito: a
+     extensão resolve na hora de preencher, não na hora de montar a fila. */
+  function prospectBridge(list) {
+    const payload = {
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      prospects: (list||[]).map(p => ({
+        id: p.id, name: p.name, category: p.category || '', address: p.address || '',
+        phone: p.phone || '', whatsapp: p.whatsapp || '',
+        score: p.score ?? null, recommendedService: p.recommendedService || '',
+        message: approachText(p),
+        crmLeadId: p.crmLeadId || null,
+        contactedAt: p.contactedAt || null
+      }))
+    };
+    // \u003c impede que um "</script>" dentro de um nome quebre a página.
+    return `<script type="application/json" id="achilles-bridge">${JSON.stringify(payload).replace(/</g,'\\u003c')}</script>`;
+  }
+
+  function bindExtensionBridge() {
+    document.addEventListener('achilles:mark-contacted', e => {
+      const { prospectId, message } = e.detail || {};
+      const p = findProspect(prospectId); if (!p) return;
+      p.contactedAt = new Date().toISOString();
+      if (message) p.approachMessage = message;
+      upsertProspect(p);
+      logActivity('Abordagem enviada', `${p.name} foi abordado pela fila da extensão.`);
+      saveData();
+      if (state.route === 'prospecting') renderCurrentPage();
+    });
+    document.addEventListener('achilles:add-crm', e => {
+      const { prospectId } = e.detail || {};
+      const p = findProspect(prospectId);
+      if (p && !p.crmLeadId) addProspectToCrm(prospectId);
+    });
   }
 
   function prospectCard(p) {
@@ -542,6 +584,7 @@
       <div class="prospect-signals">
         <span class="tag ${p.phone||p.whatsapp?'info':''}">${icon('phone',12)} ${escapeHtml(contact)}</span>
         ${wa?`<span class="tag whatsapp">${icon('message',12)} WhatsApp</span>`:''}
+        ${p.contactedAt?`<span class="tag gold">${icon('check',12)} Abordado ${shortDate(p.contactedAt)}</span>`:''}
         <span class="tag ${!p.website||p.siteUnreachable?'gold':''}">${p.siteUnreachable?'Site fora do ar':p.website?'Site encontrado':'Sem site identificado'}</span>
         ${rating?`<span class="tag">★ ${rating.toFixed(1)} · ${reviews.toLocaleString('pt-BR')} avaliações</span>`:''}
         <span class="tag ${scoreClass}">${escapeHtml(p.band || p.scoreBand || 'Oportunidade')}</span>
@@ -1325,5 +1368,6 @@
     const el=document.createElement("div");el.className="toast";el.innerHTML=`<strong>${escapeHtml(title)}</strong><span>${escapeHtml(message)}</span>`;stack.appendChild(el);setTimeout(()=>el.remove(),4200);
   }
 
+  bindExtensionBridge();
   render();
 })();

@@ -1,0 +1,88 @@
+/* Gaveta do Achilles Prospecta dentro do WhatsApp Web. */
+#ap-handle {
+  position: fixed; left: 0; top: 50%; transform: translateY(-50%);
+  z-index: 2147483000; padding: 14px 7px; border: 0; cursor: pointer;
+  border-radius: 0 12px 12px 0;
+  background: linear-gradient(165deg, #e3c877 0%, #c9a241 48%, #a8842f 100%);
+  color: #14100a; font-family: Inter, system-ui, sans-serif;
+  font-size: 11px; font-weight: 700; letter-spacing: .08em;
+  writing-mode: vertical-rl; text-orientation: mixed;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, .3);
+}
+body.ap-open #ap-handle { left: 316px; }
+
+#ap-drawer {
+  position: fixed; left: 0; top: 0; bottom: 0; width: 316px; z-index: 2147483000;
+  display: flex; flex-direction: column;
+  background: #141210; color: #f5f1e6;
+  border-right: 1px solid rgba(245, 241, 230, .08);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  transform: translateX(-100%); transition: transform .22s ease;
+}
+body.ap-open #ap-drawer { transform: none; }
+#ap-handle, #ap-drawer { transition: left .22s ease, transform .22s ease; }
+
+.ap-head {
+  display: flex; align-items: center; gap: 10px; padding: 16px 14px;
+  border-bottom: 1px solid rgba(245, 241, 230, .08);
+}
+.ap-head b { font-size: 13px; letter-spacing: -.01em; flex: 1; }
+.ap-logo {
+  width: 26px; height: 26px; border-radius: 8px; display: grid; place-content: center;
+  background: linear-gradient(165deg, #e3c877, #a8842f); color: #14100a;
+  font-weight: 800; font-size: 13px;
+}
+.ap-x { border: 0; background: transparent; color: #837b6c; font-size: 20px; cursor: pointer; line-height: 1; }
+.ap-x:hover { color: #f5f1e6; }
+
+.ap-body { flex: 1; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.ap-card {
+  padding: 13px; border: 1px solid rgba(245, 241, 230, .08); border-radius: 13px;
+  background: #1a1714;
+}
+.ap-title {
+  font-size: 9px; text-transform: uppercase; letter-spacing: .11em; color: #837b6c;
+  font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; margin-bottom: 9px;
+}
+.ap-note { font-size: 11px; line-height: 1.6; color: #b9b2a3; background: rgba(201, 162, 65, .055); }
+.ap-note b { color: #e3c877; }
+.ap-muted { color: #837b6c; font-size: 11px; line-height: 1.6; }
+.ap-muted.small { font-size: 10px; margin-top: 4px; }
+
+.ap-lead b { font-size: 13.5px; }
+.ap-pill {
+  margin-left: 7px; padding: 3px 8px; border-radius: 999px; font-size: 9px;
+  border: 1px solid rgba(201, 162, 65, .2); background: rgba(201, 162, 65, .11); color: #e3c877;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+.ap-await {
+  margin: 11px 0 8px; padding: 10px; border-radius: 10px; font-size: 11.5px; line-height: 1.55;
+  border: 1px solid rgba(37, 211, 102, .2); background: rgba(37, 211, 102, .09); color: #d8f5e4;
+}
+.ap-await b { color: #25d366; }
+.ap-await.auto {
+  border-color: rgba(201, 162, 65, .28); background: rgba(201, 162, 65, .1); color: #f0e6cd;
+}
+.ap-await.auto b { color: #e3c877; }
+.ap-btn.auto {
+  color: #14100a; font-weight: 700; border: 0;
+  background: linear-gradient(165deg, #f4dfa2 0%, #d8b355 48%, #b8912f 100%);
+}
+.ap-ready { font-size: 12px; color: #b9b2a3; }
+.ap-ready b { font-size: 22px; color: #e3c877; font-weight: 800; letter-spacing: -.03em; }
+.ap-status { margin-top: 8px; font-size: 11px; color: #b9b2a3; line-height: 1.55; }
+
+.ap-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+.ap-btn {
+  flex: 1; min-width: 84px; padding: 9px 11px; border-radius: 10px; cursor: pointer;
+  border: 1px solid rgba(245, 241, 230, .08); background: #221e19; color: #b9b2a3;
+  font-family: inherit; font-size: 11.5px; font-weight: 600;
+}
+.ap-btn:hover { color: #f5f1e6; border-color: rgba(201, 162, 65, .34); }
+.ap-btn.primary {
+  border: 0; color: #14100a; font-weight: 700;
+  background: linear-gradient(165deg, #e3c877 0%, #c9a241 48%, #a8842f 100%);
+}
+.ap-btn.warn { color: #eda56c; }
+.ap-btn.danger { color: #f0a08c; }
+.ap-btn.ghost { background: transparent; }

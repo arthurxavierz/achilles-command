@@ -93,6 +93,7 @@ create table if not exists public.prospects (
   recommended_service text,
   approach_message text,
   approach_note text,
+  contacted_at timestamptz,
   score integer not null default 50 check (score between 0 and 100),
   score_band text,
   score_reasons jsonb not null default '[]'::jsonb,

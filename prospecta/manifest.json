@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Achilles Prospecta",
+  "version": "1.1.0",
+  "description": "Fila de abordagem do Achilles Command dentro do WhatsApp Web: abre a conversa, preenche a mensagem e — no modo automático — envia e segue para o próximo lead sozinha.",
+  "permissions": ["storage", "tabs", "notifications"],
+  "host_permissions": [
+    "https://web.whatsapp.com/*",
+    "https://app.achillesmedia.com.br/*",
+    "https://*.achillesmedia.com.br/*",
+    "https://*.netlify.app/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_title": "Achilles Prospecta",
+    "default_popup": "panel.html",
+    "default_icon": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+  },
+  "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://app.achillesmedia.com.br/*",
+        "https://*.achillesmedia.com.br/*",
+        "https://*.netlify.app/*",
+        "http://localhost/*",
+        "http://localhost:*/*",
+        "http://127.0.0.1/*",
+        "http://127.0.0.1:*/*"
+      ],
+      "js": ["lib/shared.js", "content-command.js"],
+      "css": ["content-command.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": ["lib/shared.js", "content-whatsapp.js"],
+      "css": ["content-whatsapp.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

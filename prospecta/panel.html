@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Achilles Prospecta</title>
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body>
+  <header>
+    <span class="logo">A</span>
+    <div><strong>Achilles Prospecta</strong><small>fila de abordagem</small></div>
+  </header>
+
+  <section class="card">
+    <div class="label">Fila atual</div>
+    <div id="queue" class="muted">carregando…</div>
+  </section>
+
+  <section class="card">
+    <div class="label">Hoje</div>
+    <div id="stats" class="muted">—</div>
+  </section>
+
+  <section class="card">
+    <div class="label">Modo de envio</div>
+    <label class="switch">
+      <input type="checkbox" id="autoSend" />
+      <span>Enviar automaticamente (a extensão aperta o Enter)</span>
+    </label>
+    <label class="field">
+      <span>Janela para cancelar antes de cada envio</span>
+      <div class="row"><input type="number" id="autoSendDelay" min="0" max="120" /><em>segundos</em></div>
+    </label>
+    <label class="switch">
+      <input type="checkbox" id="returnToCommand" />
+      <span>Voltar para a aba do Command ao terminar</span>
+    </label>
+    <p class="muted small">Desligado, a extensão só preenche e espera você enviar.</p>
+  </section>
+
+  <section class="card">
+    <div class="label">Ritmo</div>
+    <label class="field">
+      <span>Pausa entre leads</span>
+      <div class="row"><input type="number" id="pauseBetween" min="0" max="600" /><em>segundos</em></div>
+    </label>
+    <label class="field">
+      <span>Teto de abordagens por dia</span>
+      <div class="row"><input type="number" id="dailyCap" min="1" max="500" /><em>leads</em></div>
+    </label>
+    <label class="switch">
+      <input type="checkbox" id="respectHours" />
+      <span>Só rodar em horário comercial</span>
+    </label>
+    <label class="field">
+      <span>Janela</span>
+      <div class="row">
+        <input type="number" id="hoursStart" min="0" max="23" /><em>h às</em>
+        <input type="number" id="hoursEnd" min="1" max="24" /><em>h</em>
+      </div>
+    </label>
+    <button id="save" type="button">Salvar</button>
+    <div id="saved" class="saved">salvo</div>
+  </section>
+
+  <footer>
+    No modo automático a extensão envia por você. Disparo em massa não
+    solicitado infringe a política do WhatsApp e pode custar o número.
+  </footer>
+
+  <script src="lib/shared.js"></script>
+  <script src="panel.js"></script>
+</body>
+</html>

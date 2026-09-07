@@ -1,0 +1,48 @@
+* { box-sizing: border-box; }
+body {
+  width: 300px; margin: 0; padding: 14px;
+  background: #0e0d0b; color: #f5f1e6;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 13px;
+}
+header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+header strong { display: block; font-size: 13.5px; letter-spacing: -.01em; }
+header small { color: #837b6c; font-size: 10px; }
+.logo {
+  width: 30px; height: 30px; border-radius: 9px; display: grid; place-content: center;
+  background: linear-gradient(165deg, #e3c877, #a8842f); color: #14100a; font-weight: 800;
+}
+.card {
+  padding: 12px; margin-bottom: 10px;
+  border: 1px solid rgba(245, 241, 230, .08); border-radius: 12px; background: #141210;
+}
+.label {
+  font-size: 9px; text-transform: uppercase; letter-spacing: .11em; color: #837b6c;
+  font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; margin-bottom: 8px;
+}
+.muted { color: #b9b2a3; font-size: 11.5px; line-height: 1.55; }
+.muted.small { font-size: 10.5px; color: #837b6c; margin: 2px 0 0; }
+.muted strong, #stats strong, #queue strong { color: #e3c877; font-size: 15px; font-weight: 800; }
+
+.field { display: block; margin-bottom: 10px; }
+.field > span { display: block; font-size: 11px; color: #b9b2a3; margin-bottom: 5px; }
+.row { display: flex; align-items: center; gap: 7px; }
+.row em { font-style: normal; font-size: 10.5px; color: #837b6c; }
+input[type="number"] {
+  width: 68px; padding: 7px 9px; border-radius: 9px;
+  border: 1px solid rgba(245, 241, 230, .08); background: #100e0c; color: #f5f1e6;
+  font-family: inherit; font-size: 12.5px;
+}
+input[type="number"]:focus { outline: none; border-color: rgba(201, 162, 65, .34); }
+
+.switch { display: flex; align-items: center; gap: 8px; margin: 4px 0 12px; font-size: 11.5px; color: #b9b2a3; }
+.switch input { accent-color: #c9a241; }
+
+button {
+  width: 100%; padding: 10px; border: 0; border-radius: 10px; cursor: pointer;
+  background: linear-gradient(165deg, #e3c877 0%, #c9a241 48%, #a8842f 100%);
+  color: #14100a; font-family: inherit; font-size: 12.5px; font-weight: 700;
+}
+.saved { margin-top: 7px; text-align: center; font-size: 10.5px; color: #5fc98b; opacity: 0; transition: opacity .2s; }
+.saved.show { opacity: 1; }
+
+footer { color: #5d564b; font-size: 10px; line-height: 1.5; text-align: center; margin-top: 4px; }
