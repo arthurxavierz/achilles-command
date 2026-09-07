@@ -119,6 +119,8 @@ não avança depois de enviar       -> outgoing desatualizado
 nada sai no automático            -> sendBtn desatualizado (cai no Enter sintético)
 pula todo mundo como inválido     -> dialog pegando o diálogo errado
 a fila não aparece no Command     -> domínio fora do matches do manifest
+a aba do Command trava            -> content-command.js pintando dentro do
+                                     próprio MutationObserver (watchCommand)
 ```
 
 ## Arquivos
