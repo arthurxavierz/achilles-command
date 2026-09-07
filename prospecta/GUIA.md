@@ -57,6 +57,8 @@ Sem ela nada quebra — a marcação fica só no navegador.
 [⚡ Disparo automático]  o WhatsApp abre e a fila já começa a andar
 ```
 
+Quem escreve a mensagem na caixa é o próprio WhatsApp, pelo `?text=` da URL da conversa — assim as quebras de linha e os emoji chegam exatamente como o Command montou. A extensão só confere se o que está na caixa é o que foi pedido e, só então, envia.
+
 **3. Acompanhe.** A barra da Captação passa a mostrar `3/12 enviados` enquanto a fila roda, com um botão **Pausar fila** que funciona daqui mesmo. Na aba do WhatsApp, a gaveta lateral mostra o lead atual e a contagem antes de cada envio:
 
 ```
@@ -74,7 +76,7 @@ O automático prefere parar a errar em série:
 ```
 número inválido 2x seguidas          pausa para você conferir a base
 envio não confirmado em 20s          marca falha; 2 seguidas pausam a fila
-a caixa não tem o texto preparado    pausa sem enviar (alguém digitou junto)
+a caixa não tem o texto preparado    pula o lead; 2 seguidas pausam a fila
 não consegui escrever na caixa       pausa e pede a aba visível
 teto diário / fora do horário        pausa e guarda a fila para depois
 ```

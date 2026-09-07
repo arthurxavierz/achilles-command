@@ -49,7 +49,12 @@
   /* Comparação do que está na caixa com o que preparamos. O editor do WhatsApp
      devolve quebras e espaços um pouco diferentes do texto original, então a
      conferência é pelo conteúdo, não pela formatação. */
-  const norm = (t) => String(t || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+  const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu;   // o editor devolve <img>, nao o caractere
+  const norm = (t) => String(t || '')
+    .replace(EMOJI, '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
   function invalidNumber() {
     const d = qs(SEL.dialog); if (!d) return false;
@@ -57,13 +62,21 @@
     return t.includes('inválid') || t.includes('invalid') || t.includes('shared via url');
   }
 
+  /* Reserva, para quando o WhatsApp não escrever pela URL. insertText com "\n"
+     é engolido pelo editor — a mensagem chegava com o ponto final colado na
+     frase seguinte — então cada linha entra separada, com insertLineBreak
+     entre elas, que é o mesmo evento do Shift+Enter. */
   function fillCompose(text) {
     const box = qs(SEL.msgInput);
     if (!box) return false;
     box.focus();
     try {
       document.execCommand('selectAll', false, null);
-      document.execCommand('insertText', false, text);
+      document.execCommand('delete', false, null);
+      String(text).split('\n').forEach((line, i) => {
+        if (i) document.execCommand('insertLineBreak', false, null);
+        if (line) document.execCommand('insertText', false, line);
+      });
     } catch (e) { /* cai no plano B logo abaixo */ }
     if (!composeText()) {
       box.textContent = text;
@@ -155,11 +168,24 @@
 
     const item = queue.items[queue.i];
 
-    // 1. abrir a conversa (a navegação recarrega a página; boot() retoma)
+    if (!String(item.message || '').trim()) {
+      item.skipped = true; queue.i++; await putQueue(queue);
+      status(`${esc(item.name)} está sem mensagem — pulando.`);
+      return advance(queue, settings, 0);
+    }
+
+    /* 1. abrir a conversa já com a mensagem. Quem escreve na caixa é o próprio
+       WhatsApp, pelo ?text= — ele preserva as quebras de linha e os emoji, que
+       o preenchimento pelo editor perdia. O texto resolvido fica guardado no
+       item: a saudação é a do momento de abrir, e a conferência de antes do
+       envio compara com exatamente o que foi pedido.
+       (a navegação recarrega a página; boot() retoma) */
     if (urlPhone() !== item.wa) {
+      item.resolved = resolveMessage(item.message, item);
+      await putQueue(queue);
       status(`Abrindo ${esc(item.name || item.wa)}…`);
       setActive(true);
-      location.href = `https://web.whatsapp.com/send?phone=${item.wa}`;
+      location.href = `https://web.whatsapp.com/send?phone=${item.wa}&text=${encodeURIComponent(item.resolved)}`;
       return;
     }
 
@@ -177,17 +203,15 @@
     }
     if (!qs(SEL.msgInput)) { status('Não achei a caixa de mensagem. O WhatsApp Web está conectado?'); return; }
 
-    // 3. preencher
-    const text = resolveMessage(item.message, item);
-    if (!text) {
-      item.skipped = true; queue.i++; await putQueue(queue);
-      status(`${esc(item.name)} está sem mensagem — pulando.`);
-      return advance(queue, settings, 0);
-    }
-    const baseline = outgoingCount();
-    if (!fillCompose(text)) {
+    // 3. esperar o WhatsApp escrever; só preencher à mão se ele não escrever
+    const text = item.resolved || resolveMessage(item.message, item);
+    let waited = 0;
+    while (!composeText() && waited < 12) { await sleep(400); waited++; }
+    if (!composeText()) fillCompose(text);
+    if (!composeText()) {
       return halt(queue, 'Não consegui escrever na caixa de mensagem. Deixe a aba do WhatsApp visível e retome a fila.');
     }
+    const baseline = outgoingCount();
 
     // 4. enviar (automático) ou devolver o controle para você (revisar)
     let outcome;
@@ -198,9 +222,14 @@
       if (decision === 'skip') {
         outcome = 'skip';
       } else if (norm(composeText()) !== norm(text)) {
-        // A caixa não tem exatamente o que preparamos: alguém digitou junto ou
-        // o preenchimento se perdeu. Não se envia no escuro.
-        return halt(queue, 'A mensagem na caixa mudou antes do envio. Fila pausada por segurança.');
+        /* A caixa não tem o que preparamos: alguém digitou junto, ou o
+           preenchimento se perdeu. Não se envia no escuro — mas derrubar a fila
+           inteira por causa de uma conversa é pesado demais, então pula este
+           lead. Só uma sequência de divergências indica problema de verdade. */
+        item.failed = true; queue.i++; await putQueue(queue);
+        status(`A mensagem de ${esc(item.name || item.wa)} não conferiu — pulei sem enviar.`);
+        if (++fails >= MAX_FAILS) return halt(queue, `${fails} mensagens seguidas não conferiram. Fila pausada para você conferir.`);
+        return advance(queue, settings, 0);
       } else {
         status(`Enviando para ${esc(item.name || item.wa)}…`);
         pressSend();

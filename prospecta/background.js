@@ -25,9 +25,16 @@ async function pushPending(action) {
   deliverPending();
 }
 
+/* Os padrões acima são largos de propósito (netlify.app cobre os testes), e
+   por isso casam também com outros projetos que você tenha abertos — era assim
+   que a volta da fila caía numa aba aleatória. A aba que montou a fila vem
+   primeiro; a mesma origem vem depois; o resto é último recurso. */
 async function commandTabs() {
-  const tabs = await chrome.tabs.query({ url: COMMAND_URLS });
-  return tabs.filter(t => t.id != null);
+  const tabs = (await chrome.tabs.query({ url: COMMAND_URLS })).filter(t => t.id != null);
+  const preferredId = await get('commandTabId', null);
+  const origin = await get('commandOrigin', '');
+  const rank = (t) => (t.id === preferredId ? 2 : 0) + (origin && String(t.url || '').startsWith(origin) ? 1 : 0);
+  return tabs.sort((a, b) => rank(b) - rank(a));
 }
 
 async function deliverPending() {
@@ -65,6 +72,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   (async () => {
     switch (msg && msg.type) {
       case 'ap:queue-set': {
+        // Guarda de qual aba a fila saiu, para saber para onde voltar no fim.
+        if (sender && sender.tab && sender.tab.id != null) await set('commandTabId', sender.tab.id);
+        try { await set('commandOrigin', new URL(msg.source || '').origin); } catch (e) { /* sem origem utilizável */ }
         // Fila nova chega da Captação. Só começa sozinha quando você pediu o
         // disparo automático lá no Command (autostart), nunca por conta própria.
         await set('queue', {
