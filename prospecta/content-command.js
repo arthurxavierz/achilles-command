@@ -6,11 +6,25 @@
   const { esc, whatsappDigits } = window.AP;
   const BRIDGE_ID = 'achilles-bridge';
 
+  /* A ponte é relida a cada passada, mas só vale reprocessar quando o texto
+     muda de verdade — são dezenas de leads em JSON, e a página re-renderiza a
+     cada clique de filtro. */
+  let bridgeRaw = '', bridgeData = null;
   function readBridge() {
     const el = document.getElementById(BRIDGE_ID);
-    if (!el) return null;
-    try { return JSON.parse(el.textContent || '{}'); } catch (e) { return null; }
+    if (!el) { bridgeRaw = ''; bridgeData = null; return null; }
+    const raw = el.textContent || '';
+    if (raw === bridgeRaw) return bridgeData;
+    bridgeRaw = raw;
+    try { bridgeData = JSON.parse(raw || '{}'); } catch (e) { bridgeData = null; }
+    return bridgeData;
   }
+
+  /* Escrever textContent troca o nó de texto, e trocar nó de texto é uma
+     mutação de childList — a mesma que o observer lá embaixo escuta. Escrever
+     só quando o valor muda é o que impede a barra de realimentar o próprio
+     observer. */
+  const setText = (el, value) => { if (el && el.textContent !== value) el.textContent = value; };
 
   /* --- barra flutuante ---------------------------------------------------- */
   let bar, ready = 0, watching = null, lastQueue = null;
@@ -53,11 +67,11 @@
 
     if (running) {
       const done = queue.items.filter(x => x.sent).length;
-      count.textContent = `${done}/${queue.items.length}`;
-      label.textContent = queue.autoSend ? 'enviados · disparo em andamento' : 'enviados · fila em andamento';
+      setText(count, `${done}/${queue.items.length}`);
+      setText(label, queue.autoSend ? 'enviados · disparo em andamento' : 'enviados · fila em andamento');
     } else {
-      count.textContent = String(ready);
-      label.textContent = 'prontos para abordagem';
+      setText(count, String(ready));
+      setText(label, 'prontos para abordagem');
     }
 
     bar.querySelector('#ap-bar-send').hidden = running;
@@ -125,7 +139,7 @@
   function flash(text) {
     let t = document.getElementById('ap-flash');
     if (!t) { t = document.createElement('div'); t.id = 'ap-flash'; document.body.appendChild(t); }
-    t.textContent = text;
+    setText(t, text);
     t.classList.add('show');
     setTimeout(() => t.classList.remove('show'), 8000);
   }
@@ -147,13 +161,41 @@
     return true;
   });
 
+  /* --- observar o Command ------------------------------------------------
+     O Command re-renderiza a página inteira a cada ação, então observar é mais
+     confiável do que tentar acertar o momento certo. Duas proteções são
+     obrigatórias aqui, e a falta delas travava a aba:
+
+     1. ignorar o que a própria barra mexe — senão pintar agenda outra pintura;
+     2. agrupar por frame — uma re-renderização da página emite centenas de
+        mutações, e todas pedem exatamente o mesmo trabalho.
+
+     Callback de MutationObserver roda em microtask: um laço aqui não devolve o
+     controle ao navegador, e a aba congela em vez de ficar apenas lenta. */
+  const OURS = '#ap-bar, #ap-flash';
+  function ownNode(n) {
+    const el = n && (n.nodeType === 1 ? n : n.parentElement);
+    return !!(el && el.closest && el.closest(OURS));
+  }
+
+  let scheduled = false;
+  function scheduleRender() {
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => { scheduled = false; render(); });
+  }
+
+  function watchCommand() {
+    new MutationObserver(records => {
+      for (const r of records) if (!ownNode(r.target)) return scheduleRender();
+    }).observe(document.body, { childList: true, subtree: true });
+  }
+
   /* --- boot -------------------------------------------------------------- */
   function boot() {
     if (!document.body) return setTimeout(boot, 300);
     render();
-    // O Command re-renderiza a página inteira a cada ação; observar é mais
-    // barato e mais confiável do que tentar acertar o momento certo.
-    new MutationObserver(() => render()).observe(document.body, { childList: true, subtree: true });
+    watchCommand();
     chrome.runtime.sendMessage({ type: 'ap:flush' }).catch(() => {});
     // Se uma fila ficou correndo em outra aba, a barra já entra acompanhando.
     tickQueue().then(() => chrome.runtime.sendMessage({ type: 'ap:queue-get' })
