@@ -24,6 +24,7 @@ No painel do Supabase, **SQL Editor**, nesta ordem:
 ```text
 supabase/migration_2026_09_19_extrator_cnae.sql   listas nomeadas e campos de CNPJ nos prospects
 supabase/migration_2026_09_20_base_cnpj.sql       a base própria de CNPJ
+supabase/migration_2026_09_21_responsavel.sql     nome de quem assina pela empresa
 ```
 
 A segunda cria `cnpj_estabelecimentos`, `cnpj_empresas` e a visão `cnpj_busca`, que junta as duas. Leitura é liberada para quem está logado no Command; escrita, só para o carregador.
@@ -89,6 +90,16 @@ Rodar de novo não duplica nada: o carregador faz upsert pelo CNPJ. Ampliar o re
 **Sobre o plano do Supabase:** o gratuito são 500 MB e o recorte padrão ocupa ~1,1 GB, então ele exige o plano Pro. Para caber no gratuito é preciso apertar bem mais — um estado só e uma lista curta de CNAEs.
 
 Uma advertência sobre estimar antes de carregar: `--contar --arquivos 1` projeta a partir de um arquivo só, e os dez não são equivalentes. O arquivo 0 sozinho responde por 44% do resultado, e entre os outros nove a variação vai de 52 mil a 148 mil empresas. O script corrige isso com as proporções medidas numa carga real, mas se o seu recorte de estados ou CNAEs for muito diferente, só o `--contar` completo responde de verdade.
+
+### Passo 2b — Preencher o responsável
+
+Se a base já estava carregada antes da migração do responsável, não é preciso refazer tudo:
+
+```bash
+node tools/carregar-base-cnpj.mjs --apenas-responsaveis
+```
+
+Isso lê só os arquivos de Empresas e de Sócios (cerca de 2 GB) e preenche o nome nas empresas que já estão no banco. Em uma carga nova, com `--carregar`, já vem junto.
 
 ### Passo 3 — Atualizar uma vez por mês
 
@@ -210,6 +221,38 @@ Os outros cuidados, que valem desde o primeiro disparo:
 - Volume alto em número novo queima o número. Comece baixo e suba devagar.
 - A base é pública, mas o uso continua sujeito à LGPD e às regras do WhatsApp.
 
+## 3b. O nome de quem atende
+
+A mensagem abre com uma saudação, e "Bom dia! Tudo bem?" sem nome soa como disparo. O cadastro da Receita traz quem assina pela empresa, e isso entra na abertura: "Bom dia, João! Tudo bem?".
+
+De onde o nome vem:
+
+- **Empresário Individual** — a razão social já é a pessoa ("JOAO DA SILVA 12345678900"). O documento colado no nome é removido.
+- **Demais empresas** — o sócio-administrador, no arquivo de Sócios.
+
+Na carga de MG/GO/DF isso cobre a grande maioria das empresas. As que sobram são sociedades só de pessoa jurídica ou sem sócio no cadastro; nesses casos a mensagem simplesmente abre sem nome, como antes.
+
+**Cuidado que vale repetir:** o sócio-administrador é quem responde pela empresa no papel. Pode não ser quem atende o WhatsApp, e o cadastro pode estar velho. Por isso o nome só abre a conversa — o sistema não afirma nada sobre a pessoa e não guarda nenhum outro dado dela além do primeiro nome e do nome completo.
+
+## 3c. A mensagem
+
+Um contato do extrator recebe a mesma estrutura de abordagem que um do Google — abertura, oportunidade, ganho e convite — mas montada com o que existe aqui.
+
+A do Google se apoia em nota, avaliações e se a empresa tem site. Nada disso existe no cadastro da Receita, e inventar observação seria mentir na primeira frase. Em compensação existem duas coisas que a do Google quase nunca tem: **o segmento pelo nome que as pessoas usam** e **a cidade**.
+
+O resultado, para um restaurante em Uberaba com melhor encaixe em posicionamento digital:
+
+> {{saudacao}}, João! Tudo bem? Sou o Arthur, da Achilles Media.
+> Passei pelo Restaurante Sabor Mineiro, aí em Uberaba, e trabalho com negócios como o de vocês. Na prática, o que costuma fazer mais diferença é a forma como vocês aparecem para quem procura restaurante por perto: perfil bem montado, presença com constância e um caminho claro para a pessoa chamar no WhatsApp.
+>
+> São ajustes que transformam quem já está procurando em conversa de verdade.
+>
+> Consigo te apresentar brevemente?
+
+O trecho do meio muda conforme o melhor encaixe — site, posicionamento digital ou automação. O `{{saudacao}}` continua sendo variável, resolvida no momento do envio: mensagem preparada de manhã não pode chegar dando bom dia às oito da noite.
+
+Como em toda abordagem do Command, você pode editar antes de enviar, e o texto editado passa a ser o oficial daquele contato.
+
 ## 4. O score do extrator
 
 O score do Google Places usa nota e avaliações. O extrator não tem nenhuma das duas, então usa o que existe no cadastro: o CNAE, o porte, o tempo de atividade e a qualidade do contato.
@@ -235,7 +278,7 @@ node tools/testar-extrator-ui.mjs
 node tools/testar-carregador.mjs C:/caminho/da/pasta
 ```
 
-São 132 verificações. O primeiro cobre os dois provedores, os filtros enviados ao banco e a leitura do telefone. O terceiro roda o carregador de verdade contra um Supabase simulado e confere o que seria gravado. O segundo percorre o caminho inteiro num DOM simulado e checa as três regras que não podem quebrar: importar não cria lead no CRM, não marca ninguém como abordado, e reimportar a mesma busca não duplica contato.
+São 164 verificações. O primeiro cobre os dois provedores, os filtros enviados ao banco e a leitura do telefone. O terceiro roda o carregador de verdade contra um Supabase simulado e confere o que seria gravado. O segundo percorre o caminho inteiro num DOM simulado e checa as três regras que não podem quebrar: importar não cria lead no CRM, não marca ninguém como abordado, e reimportar a mesma busca não duplica contato.
 
 Checklist manual, na primeira vez:
 

@@ -36,6 +36,8 @@
      --arquivos 0,1,2    só estes arquivos da Receita
      --lote 1000         linhas por requisição ao Supabase
      --limpar-antigas    ao final, apaga as linhas de competências anteriores
+     --apenas-responsaveis  não refaz a carga: só preenche o responsável das
+                            empresas já no banco, lendo Empresas e Sócios
      --local C:/pasta    usa os ZIPs já baixados dessa pasta, sem baixar nada
      --cache C:/pasta    onde guardar o download (padrão: .cache-receita)
      --manter            não apaga os ZIPs depois de processar
@@ -97,6 +99,7 @@ function lerArgumentos(argv) {
     const proximo = () => argv[++i];
     if (a === '--contar') cfg.modo = 'contar';
     else if (a === '--carregar') cfg.modo = 'carregar';
+    else if (a === '--apenas-responsaveis') cfg.modo = 'responsaveis';
     else if (a === '--celular') cfg.somenteCelular = true;
     else if (a === '--com-telefone') cfg.somenteCelular = false;
     else if (a === '--todas-situacoes') cfg.somenteAtivas = false;
@@ -113,7 +116,8 @@ function lerArgumentos(argv) {
     else { console.error(`Opção desconhecida: ${a}`); process.exit(1); }
   }
   if (!cfg.modo) {
-    console.error('Diga o que fazer: --contar (só mede) ou --carregar (grava no Supabase).');
+    console.error('Diga o que fazer: --contar (só mede), --carregar (grava no Supabase)');
+    console.error('ou --apenas-responsaveis (preenche só o nome do responsável).');
     process.exit(1);
   }
   return cfg;
@@ -366,13 +370,127 @@ function descartar(cfg, caminho) {
   try { rmSync(caminho, { force: true }); } catch { /* arquivo em uso: some na próxima */ }
 }
 
+/* --- terceira passada: responsável ----------------------------------------
+   A mensagem de abordagem abre com uma saudação. Sem nome ela fica impessoal
+   ("Bom dia! Tudo bem?") e soa como disparo; com o nome de quem assina pela
+   empresa, soa como alguém que olhou antes de escrever.
+
+   Empresário Individual já foi resolvido na passada anterior: nesse caso a
+   razão social é a própria pessoa. Aqui ficam os demais, que saem do arquivo
+   de Sócios.
+
+   Isto é uma aposta, não um fato: o sócio-administrador pode não ser quem
+   atende o WhatsApp, e o cadastro pode estar velho. Por isso guardamos só o
+   nome — nenhum outro dado da pessoa entra no banco — e a interface nunca
+   afirma nada sobre ele. */
+
+/* Qualificação do sócio na Receita. Quanto menor o número aqui, mais provável
+   que seja quem decide e quem atende. */
+const QUALIFICACAO = { 49: 1, 5: 2, 16: 3, 65: 4, 10: 5, 22: 6, 8: 7 };
+
+async function passarSocios(cfg, alvos, resolvidos, supabaseUrl, chave) {
+  const pendentes = [...alvos].filter(b => !resolvidos.has(b));
+  if (!pendentes.length) return 0;
+
+  const faltando = new Set(pendentes);
+  console.log(`--- responsável de ${num(faltando.size)} empresas ---`);
+  console.log('    Os Empresários Individuais já foram resolvidos pela razão social.');
+  console.log('    Estes saem do arquivo de Sócios, mais 0,7 GB.\n');
+
+  let encontrados = 0;
+  let lote = [];
+
+  for (const indice of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) {
+    const arquivo = `Socios${indice}.zip`;
+    // Todos os sócios de uma empresa ficam no mesmo arquivo, porque a Receita
+    // divide pela mesma chave. Por isso dá para fechar o mapa ao fim de cada
+    // arquivo em vez de segurar 1,8 milhão de nomes na memória de uma vez.
+    const melhor = new Map();
+    let caminho;
+    let lidas = 0;
+
+    try {
+      caminho = await arquivoDaReceita(cfg, arquivo);
+      for await (const linha of linhasDoZip(caminho)) {
+        if (++lidas % 500000 === 0) {
+          process.stdout.write(`\r  ${arquivo}: ${num(lidas)} lidas · ${num(encontrados + melhor.size)} encontrados   `);
+        }
+        const c = separarCampos(linha);
+        if (c.length < 5) continue;
+
+        const basico = Number(String(c[0]).replace(/\D/g, ''));
+        if (!basico || !faltando.has(basico)) continue;
+
+        // 2 = pessoa física. Sócio pessoa jurídica não serve para saudação.
+        if (String(c[1] || '').trim() !== '2') continue;
+
+        const nome = limpar(c[2]);
+        if (!nome) continue;
+
+        const prioridade = QUALIFICACAO[Number(String(c[4] || '').replace(/\D/g, ''))] || 99;
+        const atual = melhor.get(basico);
+        if (!atual || prioridade < atual.prioridade) melhor.set(basico, { nome, prioridade });
+      }
+    } catch (erro) {
+      process.stdout.write('\r');
+      console.warn(`  ${arquivo}: ${erro.message}`);
+      if (caminho) descartar(cfg, caminho);
+      continue;
+    }
+
+    for (const [basico, { nome }] of melhor) {
+      encontrados++;
+      faltando.delete(basico);
+      lote.push({ cnpj_basico: basico, responsavel: nome });
+      if (lote.length >= cfg.lote) { await enviarLote(lote, supabaseUrl, chave, 'cnpj_empresas'); lote = []; }
+    }
+
+    descartar(cfg, caminho);
+    process.stdout.write(`\r  ${arquivo}: ${num(encontrados)} responsáveis no total            \n`);
+  }
+
+  if (lote.length) await enviarLote(lote, supabaseUrl, chave, 'cnpj_empresas');
+  console.log(`  ${num(faltando.size)} empresas ficaram sem responsável (sociedade só de PJ, ou sem sócio no cadastro).\n`);
+  return encontrados;
+}
+
+/* Para o modo --apenas-responsaveis: quais empresas já estão no banco. Só o
+   número do CNPJ básico vem, em páginas, então são alguns MB e não 1,8 milhão
+   de linhas inteiras. */
+async function basicosDoBanco(supabaseUrl, chave) {
+  const base = supabaseUrl.replace(/\/$/, '');
+  const conjunto = new Set();
+  const porPagina = 50000;
+
+  for (let inicio = 0; ; inicio += porPagina) {
+    const url = `${base}/rest/v1/cnpj_empresas?select=cnpj_basico&order=cnpj_basico.asc`;
+    const res = await fetch(url, {
+      headers: {
+        apikey: chave,
+        Authorization: `Bearer ${chave}`,
+        Accept: 'application/json',
+        Range: `${inicio}-${inicio + porPagina - 1}`
+      }
+    });
+    if (!res.ok) throw new Error(`Não consegui ler as empresas já carregadas (${res.status}).`);
+    const linhas = await res.json();
+    for (const l of linhas) conjunto.add(Number(l.cnpj_basico));
+    process.stdout.write(`\r  ${num(conjunto.size)} empresas já na base...`);
+    if (linhas.length < porPagina) break;
+  }
+  process.stdout.write('\n');
+  return conjunto;
+}
+
 /* --- execução ------------------------------------------------------------- */
 
 const cfg = lerArgumentos(process.argv.slice(2));
 const gravando = cfg.modo === 'carregar';
+const soResponsaveis = cfg.modo === 'responsaveis';
 
-const supabaseUrl = gravando ? env('SUPABASE_URL') : '';
-const chave = gravando ? env('SUPABASE_SERVICE_ROLE_KEY') : '';
+const precisaDoBanco = gravando || soResponsaveis;
+const supabaseUrl = precisaDoBanco ? env('SUPABASE_URL') : '';
+const chave = precisaDoBanco ? env('SUPABASE_SERVICE_ROLE_KEY') : '';
 
 const ufsAceitas = new Set(cfg.ufs);
 if (cfg.cnaesLocais && !cfg.cnaes.length) cfg.cnaes = cnaesDeNegocioLocal();
@@ -386,7 +504,7 @@ console.log(`Situação ............. ${cfg.somenteAtivas ? 'somente ativas' : '
 console.log(`CNAEs ................ ${cnaesAceitos ? `${cfg.cnaes.length} selecionados${cfg.cnaesLocais ? ' (negócio local)' : ''}` : 'todos'}`);
 console.log(`Arquivos ............. ${cfg.arquivos.join(', ')}`);
 console.log(`Origem ............... ${cfg.local || 'download direto da Receita'}`);
-console.log(`Modo ................. ${gravando ? 'CARREGAR no Supabase' : 'apenas contar (nada é gravado)'}`);
+console.log(`Modo ................. ${gravando ? 'CARREGAR no Supabase' : soResponsaveis ? 'APENAS RESPONSÁVEIS (não refaz a carga)' : 'apenas contar (nada é gravado)'}`);
 console.log('');
 
 console.log('Baixando a tabela de municípios...');
@@ -401,7 +519,14 @@ let lote = [];
 const basicosNecessarios = new Set();
 const inicio = Date.now();
 
-for (const indice of cfg.arquivos) {
+if (soResponsaveis) {
+  // Não refaz a carga: as empresas já estão no banco, falta só o nome.
+  console.log('Lendo as empresas já carregadas...');
+  for (const b of await basicosDoBanco(supabaseUrl, chave)) basicosNecessarios.add(b);
+  console.log('');
+}
+
+for (const indice of (soResponsaveis ? [] : cfg.arquivos)) {
   const arquivo = `Estabelecimentos${indice}.zip`;
   console.log(`--- ${arquivo} ---`);
   const antes = aceitas;
@@ -492,8 +617,10 @@ lote = [];
    bem menores (1,3 GB no total) e só guardamos as empresas que sobreviveram
    ao filtro da primeira passada. */
 let empresas = 0;
-if (gravando && basicosNecessarios.size) {
-  console.log(`--- razão social de ${num(basicosNecessarios.size)} empresas ---`);
+// Quem ja tem responsavel e nao precisa passar pelo arquivo de Socios.
+const resolvidos = new Set();
+if (precisaDoBanco && basicosNecessarios.size) {
+  console.log(`--- razão social e Empresário Individual: ${num(basicosNecessarios.size)} empresas ---`);
   // Sempre os 10 arquivos: a Receita distribui as empresas por um critério
   // diferente do dos estabelecimentos, então a empresa de um estabelecimento
   // do arquivo 1 pode estar em qualquer um dos dez.
@@ -510,7 +637,20 @@ if (gravando && basicosNecessarios.size) {
         const razao = limpar(c[1]);
         if (!razao) continue;
         empresas++;
-        lote.push({ cnpj_basico: basico, razao_social: razao, porte: Number(String(c[5] || '0').replace(/\D/g, '')) || null });
+
+        /* Natureza 2135 e Empresario Individual: a razao social ja e o nome
+           da pessoa ("JOAO DA SILVA 12345678900"). Esses nao precisam do
+           arquivo de Socios, que nem os lista. */
+        const natureza = Number(String(c[2] || '').replace(/\D/g, ''));
+        const responsavel = natureza === 2135 ? razao : null;
+        if (responsavel) resolvidos.add(basico);
+
+        lote.push({
+          cnpj_basico: basico,
+          razao_social: razao,
+          porte: Number(String(c[5] || '0').replace(/\D/g, '')) || null,
+          responsavel
+        });
         if (lote.length >= cfg.lote) { await enviarLote(lote, supabaseUrl, chave, 'cnpj_empresas'); lote = []; }
       }
     } catch (erro) {
@@ -520,9 +660,15 @@ if (gravando && basicosNecessarios.size) {
     console.log(`  ${arquivo}: ${num(empresas)} razões sociais até aqui`);
   }
   if (lote.length) await enviarLote(lote, supabaseUrl, chave, 'cnpj_empresas');
+  lote = [];
 } else if (basicosNecessarios.size) {
   console.log(`(No modo --contar a razão social não é buscada. Seriam ${num(basicosNecessarios.size)} empresas,`);
   console.log(' lidas dos arquivos Empresas*.zip, que somam 1,3 GB.)');
+}
+
+let responsaveis = 0;
+if (precisaDoBanco && basicosNecessarios.size) {
+  responsaveis = resolvidos.size + await passarSocios(cfg, basicosNecessarios, resolvidos, supabaseUrl, chave);
 }
 
 if (gravando && cfg.limparAntigas) {
@@ -555,12 +701,22 @@ if (gravando) {
 }
 
 const minutos = ((Date.now() - inicio) / 60000).toFixed(1);
-const parcial = cfg.arquivos.length < 10;
+const parcial = !soResponsaveis && cfg.arquivos.length < 10;
+
+if (soResponsaveis) {
+  console.log('========================================');
+  console.log(`Empresas na base ..... ${num(basicosNecessarios.size)}`);
+  console.log(`Com responsável ...... ${num(responsaveis)} (${num(resolvidos.size)} por serem Empresário Individual)`);
+  console.log(`Tempo ................ ${minutos} min`);
+  console.log('========================================');
+  process.exit(0);
+}
 
 console.log('========================================');
 console.log(`Linhas lidas ......... ${num(lidas)}`);
 console.log(`Empresas aceitas ..... ${num(aceitas)}`);
 if (gravando) console.log(`Razões sociais ....... ${num(empresas)}`);
+if (gravando) console.log(`Com responsável ...... ${num(responsaveis)}`);
 console.log(`Tempo ................ ${minutos} min`);
 console.log('');
 console.log('Por estado:');

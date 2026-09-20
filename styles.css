@@ -1020,6 +1020,33 @@ h1, h2, h3, h4,
   .extractor-lists .list-row { grid-template-columns: 1fr; }
   .list-row-actions { justify-content: stretch; }
   .list-row-actions .btn { flex: 1; }
+
+  /* A prévia deixa de ser tabela e vira um cartão por empresa. Uma tabela de
+     8 colunas no celular obriga a rolar de lado para marcar a caixa que está
+     na primeira coluna e ler o telefone que está na sexta — e marcar contato
+     é exatamente o que se faz nessa tela. */
+  .extractor-preview { padding: 12px; }
+  .extractor-preview .table-wrap { overflow: visible; }
+  .extractor-table { min-width: 0; display: block; }
+  .extractor-table thead { display: none; }
+  .extractor-table tbody, .extractor-table tr, .extractor-table td { display: block; width: auto; }
+  .extractor-table tr {
+    position: relative; margin-bottom: 10px; padding: 12px 12px 12px 44px;
+    border: 1px solid var(--border); border-radius: 12px; background: var(--panel);
+  }
+  .extractor-table tr.row-selected { border-color: var(--border-strong); background: var(--gold-softer); }
+  .extractor-table td { padding: 2px 0; border: 0; font-size: 11.5px; }
+  .extractor-table td:empty { display: none; }
+  /* A caixa de seleção fica fixa no canto, ao alcance do polegar. */
+  .extractor-table .col-check { position: absolute; left: 12px; top: 12px; width: auto; padding: 0; }
+  .extractor-table input[type="checkbox"] { width: 20px; height: 20px; }
+  /* No celular o que importa é nome, cidade, telefone e score; CNPJ, CNAE e
+     data de abertura continuam no CSV e na versão de computador. */
+  .extractor-table td.hide-mobile { display: none !important; }
+  .extractor-table td:last-child::before { content: "Score "; color: var(--muted); font-size: 10px; }
+  .extractor-preview .toolbar { flex-direction: column; align-items: stretch; gap: 10px; }
+  .extractor-preview .toolbar-right { display: flex; }
+  .extractor-preview .toolbar-right .btn { flex: 1; }
 }
 
 /* filtros da captação — chips de contato e de encaixe comercial */

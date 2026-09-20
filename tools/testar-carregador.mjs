@@ -9,8 +9,11 @@
    Precisa dos ZIPs da competência numa pasta local, porque baixar 5 GB a
    cada teste não faz sentido. Baixe uma vez:
 
-     Municipios.zip, Estabelecimentos1.zip e Empresas1.zip
+     Municipios.zip, Estabelecimentos1.zip, Empresas1.zip e Socios1.zip
      de https://arquivos.receitafederal.gov.br/public.php/webdav/2026-09/
+
+   Os arquivos que faltarem viram aviso, não falha: o teste segue com o que
+   houver. Quanto mais arquivos, mais caminhos ele cobre.
 
    e rode com a pasta:
 
@@ -64,8 +67,12 @@ check('pede upsert em vez de insert nos estabelecimentos',
 check('pede upsert tambem nas empresas',
   !recebido.empresas.length || /merge-duplicates/.test(recebido.headers.cnpj_empresas?.Prefer || ''), recebido.headers.cnpj_empresas?.Prefer);
 check('gravou razoes sociais', recebido.empresas.length > 0, `${recebido.empresas.length}`);
-check('razao social tem os campos certos',
-  !recebido.empresas.length || recebido.empresas.every(e => Number.isInteger(e.cnpj_basico) && typeof e.razao_social === 'string'));
+// Duas formas convivem: a linha completa da passada de Empresas e a
+// atualizacao enxuta da passada de Socios, que so leva o responsavel.
+check('toda linha de empresa tem a chave',
+  recebido.empresas.every(e => Number.isInteger(e.cnpj_basico)));
+check('linha completa traz razao social',
+  recebido.empresas.filter(e => 'razao_social' in e).every(e => typeof e.razao_social === 'string' && e.razao_social.length > 1));
 check('registrou a carga', recebido.cargas.length === 1, JSON.stringify(recebido.cargas[0]).slice(0, 160));
 
 const r = recebido.estab[0];
@@ -92,6 +99,23 @@ check('competencia gravada', recebido.estab.every(x => x.competencia === '2026-0
 check('sem campo fora do schema',
   recebido.estab.every(x => Object.keys(x).every(k => ['cnpj','cnpj_basico','nome_fantasia','cnae','cnae_secundarios','uf','municipio','bairro','logradouro','cep','situacao','data_inicio','telefone','telefone_tipo','email','competencia'].includes(k))),
   Object.keys(r).join(','));
+
+
+console.log('');
+console.log('--- responsavel ---');
+const comResp = recebido.empresas.filter(e => e.responsavel);
+const soResp = recebido.empresas.filter(e => e.responsavel && !('razao_social' in e));
+const porEI = recebido.empresas.filter(e => e.responsavel && 'razao_social' in e);
+check('alguma empresa recebeu responsavel', comResp.length > 0, `${comResp.length} de ${recebido.empresas.length}`);
+check('responsavel nunca vem vazio', comResp.every(e => String(e.responsavel).trim().length > 2));
+check('Empresario Individual usa a propria razao social',
+  porEI.every(e => e.responsavel === e.razao_social), `${porEI.length} casos`);
+check('atualizacao vinda de Socios manda so a chave e o nome',
+  soResp.every(e => Object.keys(e).sort().join(',') === 'cnpj_basico,responsavel'),
+  soResp.length ? Object.keys(soResp[0]).join(',') : '(nenhuma)');
+check('nenhuma empresa recebe dado extra da pessoa',
+  recebido.empresas.every(e => !('cpf' in e) && !('socio_cpf' in e) && !('idade' in e)));
+console.log('exemplos:', comResp.slice(0, 4).map(e => e.responsavel).join(' | '));
 
 console.log(falhas ? `\n${falhas} FALHA(S)` : '\nTudo passou');
 process.exitCode = falhas ? 1 : 0;

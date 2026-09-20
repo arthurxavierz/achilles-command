@@ -1251,14 +1251,22 @@
 
   function prospectCard(p) {
     const wa = whatsappDigits(p);
-    const contact = p.phone || p.whatsapp || p.email || 'Contato não publicado';
+    // Número cru ("+553491234567") no card entrega que o dado saiu de um
+    // banco. Formatado, é o que você leria em um cartão de visita.
+    // Mostra o número que o botão de WhatsApp realmente abre. Exibir o de 8
+    // dígitos do cadastro e discar outro, reconstruído, confundiria na hora
+    // de conferir se o contato deu certo.
+    const contact = p.whatsapp ? formatPhone(p.whatsapp)
+      : p.phone ? formatPhone(p.phone)
+      : p.email || 'Contato não publicado';
+    const quality = PHONE_QUALITY[p.phoneQuality];
     const scoreClass = p.score >= 75 ? 'gold' : p.score >= 55 ? 'warning' : '';
     const saved = p.crmLeadId || state.data.leads.some(l => String(l.company).toLowerCase() === String(p.name).toLowerCase());
     const rating = Number(p.rating || 0);
     const reviews = Number(p.userRatingCount || 0);
     // Prospect vindo do extrator não passou por busca de site: o card não
     // pode afirmar ausência do que ninguém procurou.
-    const siteKnown = !!p.website || !!p.lastEnrichedAt || !String(p.source||'').startsWith('Receita Federal');
+    const siteKnown = !!p.website || !usaBaseDaReceita(p);
     const serviceScores = [
       ['Site', Number(p.siteScore || 0)],
       ['Digital', Number(p.digitalScore || 0)],
@@ -1269,7 +1277,8 @@
       <div class="prospect-address">${escapeHtml(p.address || 'Endereço não informado')}${p.cnpj?` · CNPJ ${escapeHtml(formatCnpj(p.cnpj))}`:''}</div>
       <div class="prospect-signals">
         <span class="tag ${p.phone||p.whatsapp?'info':''}">${icon('phone',12)} ${escapeHtml(contact)}</span>
-        ${wa?`<span class="tag whatsapp">${icon('message',12)} WhatsApp</span>`:''}
+        ${p.contact?`<span class="tag" title="Quem assina pela empresa no cadastro da Receita. É provável que atenda, mas não é garantia.">${icon('users',12)} ${escapeHtml(p.contact)}</span>`:''}
+        ${wa?`<span class="tag whatsapp" title="${escapeHtml(quality?.label||'')}">${icon('message',12)} ${p.phoneQuality==='mobile_guess'?'WhatsApp provável':'WhatsApp'}</span>`:''}
         ${p.contactedAt?`<span class="tag gold">${icon('check',12)} Abordado ${shortDate(p.contactedAt)}</span>`:''}
         <span class="tag ${siteKnown&&(!p.website||p.siteUnreachable)?'gold':''}">${p.siteUnreachable?'Site fora do ar':p.website?'Site encontrado':siteKnown?'Sem site identificado':'Site não verificado'}</span>
         ${rating?`<span class="tag">★ ${rating.toFixed(1)} · ${reviews.toLocaleString('pt-BR')} avaliações</span>`:''}
@@ -1405,16 +1414,36 @@
     o: ['restaurante','bar','hotel','motel','mercado','supermercado','minimercado','mercadinho','salao','centro','consultorio','laboratorio','escritorio','instituto','hospital','colegio','acougue','posto','estudio','studio','espaco','grupo','auto','buffet','cafe','pet','deposito','armazem','atelie','sitio','clube','ponto','servico','comercio']
   };
 
-  function nameWithArticle(name='') {
+  function nameArticle(name='') {
     const raw = String(name).trim().split(/\s+/)[0] || '';
-    if (!raw) return 'a empresa de vocês';
+    if (!raw) return '';
     const first = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-    if (NAME_ARTICLE.a.includes(first)) return `a ${name}`;
-    if (NAME_ARTICLE.o.includes(first)) return `o ${name}`;
-    if (/(cao|sao|dade|agem|eza|ura|encia|ancia|aria|eria)$/.test(first)) return `a ${name}`;
-    if (/a$/.test(first)) return `a ${name}`;
-    if (/o$/.test(first)) return `o ${name}`;
-    return name;
+    if (NAME_ARTICLE.a.includes(first)) return 'a';
+    if (NAME_ARTICLE.o.includes(first)) return 'o';
+    if (/(cao|sao|dade|agem|eza|ura|encia|ancia|aria|eria)$/.test(first)) return 'a';
+    if (/a$/.test(first)) return 'a';
+    if (/o$/.test(first)) return 'o';
+    return '';
+  }
+
+  function nameWithArticle(name='') {
+    if (!String(name).trim()) return 'a empresa de voc\u00eas';
+    const artigo = nameArticle(name);
+    return artigo ? `${artigo} ${name}` : name;
+  }
+
+  /* "por" + "o Restaurante" \u00e9 "pelo Restaurante". Sem contrair, a mensagem
+     sai com "por o", que \u00e9 o tipo de erro que denuncia texto de m\u00e1quina. */
+  const CONTRACOES = {
+    por: { o: 'pelo', a: 'pela', '': 'por' },
+    de:  { o: 'do',   a: 'da',   '': 'de' },
+    em:  { o: 'no',   a: 'na',   '': 'em' }
+  };
+
+  function nameWithPreposition(name='', preposicao='por') {
+    const tabela = CONTRACOES[preposicao];
+    if (!tabela) return `${preposicao} ${name}`.trim();
+    return `${tabela[nameArticle(name)]} ${name}`.trim();
   }
 
   /* A escolha usa o sinal mais confiável de cada caso, não só o maior score:
@@ -1425,7 +1454,7 @@
     // guarda esse campo. Dizer "não encontrei um site" nesse caso seria afirmar
     // algo que não foi verificado, então o discurso fica no ângulo genérico
     // até o enriquecimento conferir de verdade.
-    if (!p.website && !p.lastEnrichedAt && String(p.source||'').startsWith('Receita Federal')) return 'generic';
+    if (usaBaseDaReceita(p)) return 'generic';
     if (!p.website || p.siteUnreachable) return 'site';
     const site=Number(p.siteScore||0), digital=Number(p.digitalScore||0), automation=Number(p.automationScore||0);
     if (automation >= digital + AUTOMATION_GAP && automation >= site + AUTOMATION_GAP) return 'automation';
@@ -1440,14 +1469,51 @@
     return '';
   }
 
+  /* --- abordagem do extrator ----------------------------------------------
+     A do Google se apoia no que dá para observar: nota, avaliações, se tem
+     site. Aqui nada disso existe — e inventar observação seria mentir logo na
+     primeira mensagem. Em compensação existem duas coisas que a do Google
+     quase nunca tem: o segmento pelo nome que as pessoas usam e a cidade.
+     A mensagem se apoia nessas duas, e o resto vem do melhor encaixe. */
+  const RECEITA_PITCH = {
+    'Site': segmento =>
+      `o que costuma fazer mais diferença é ter um site próprio, que apareça para quem procura ${segmento} na região e traga o contato direto, sem depender só de indicação e das redes.\n\nConsigo te mostrar como isso ficaria na prática para vocês.`,
+    'Posicionamento digital': segmento =>
+      `o que costuma fazer mais diferença é a forma como vocês aparecem para quem procura ${segmento} por perto: perfil bem montado, presença com constância e um caminho claro para a pessoa chamar no WhatsApp.\n\nSão ajustes que transformam quem já está procurando em conversa de verdade.`,
+    'Automação / IA': segmento =>
+      `as oportunidades que mais aparecem em ${segmento} costumam estar do lado interno: atendimento e follow-up automatizados, integração das ferramentas que já usam e, em alguns casos, um sistema próprio para a rotina de vocês.\n\nSão pontos que reduzem trabalho manual e liberam tempo da equipe para o que gera receita.`
+  };
+
+  function receitaApproach(p, open, invite) {
+    // O segmento entra s\u00f3 dentro do "quem procura X", que funciona no
+    // singular. Pluralizar exigiria acertar a regra caso a caso ("sal\u00f5es de
+    // beleza", "oficinas mec\u00e2nicas", "bares"), e um plural errado na
+    // primeira frase custa mais do que a frase vale.
+    const segmento = String(p.segment || '').trim() || 'neg\u00f3cios como o de voc\u00eas';
+    const alvo = nameWithPreposition(p.name, 'por');
+    const onde = p.city ? `, a\u00ed em ${p.city},` : '';
+    const pitch = (RECEITA_PITCH[p.recommendedService] || RECEITA_PITCH['Posicionamento digital'])(segmento);
+    return `${open}\nPassei ${alvo}${onde} e trabalho com neg\u00f3cios como o de voc\u00eas. Na pr\u00e1tica, ${pitch}\n\n${invite}`;
+  }
+
+  /* Contato vindo do extrator: o cadastro traz o nome de quem assina pela
+     empresa. Num negócio pequeno costuma ser quem atende — mas é aposta, não
+     certeza, por isso o nome só abre a conversa e nada é afirmado sobre ele. */
+  const usaBaseDaReceita = p => String(p?.source || '').startsWith('Receita Federal') && !p?.lastEnrichedAt;
+
   function defaultApproach(p={}) {
     const consultant = state.data.settings?.ownerName || 'Arthur';
     const agency = state.data.settings?.company || 'Achilles Media';
     const target = nameWithArticle(p.name);
-    const open = `{{saudacao}}! Tudo bem? Sou o ${consultant}, da ${agency}.`;
+    const primeiroNome = String(p.contactFirstName || '').trim();
+    const open = primeiroNome
+      ? `{{saudacao}}, ${primeiroNome}! Tudo bem? Sou o ${consultant}, da ${agency}.`
+      : `{{saudacao}}! Tudo bem? Sou o ${consultant}, da ${agency}.`;
     const invite = 'Consigo te apresentar brevemente?';
     const proof = socialProof(p);
     const angle = approachAngle(p);
+
+    if (usaBaseDaReceita(p)) return receitaApproach(p, open, invite);
 
     if (angle === 'site') {
       const problem = p.siteUnreachable
@@ -1603,7 +1669,7 @@
     const p=state.prospecting.results.find(x=>x.id===id) || state.data.prospects.find(x=>x.id===id); if(!p)return;
     const duplicate=state.data.leads.find(l=>String(l.company).toLowerCase()===String(p.name).toLowerCase() || (p.phone && String(l.phone||'').replace(/\D/g,'')===String(p.phone).replace(/\D/g,'')));
     if(duplicate){p.crmLeadId=duplicate.id;upsertProspect(p);toast('Já está no CRM',`${p.name} já possui um lead cadastrado.`);renderCurrentPage();return;}
-    const lead={id:uid('lead'),company:p.name,contact:p.name,phone:p.whatsapp||p.phone||'',email:p.email||'',service:p.recommendedService||(!p.website?'Site / posicionamento digital':'Diagnóstico digital'),source:'Captação Achilles',stage:'new',score:Number(p.score||60),value:0,lastContact:todayISO(),nextAction:'Abordagem inicial',notes:`${p.category||'Empresa local'}${p.address?` · ${p.address}`:''}. Melhor encaixe: ${p.recommendedService||'Diagnóstico digital'}. Oportunidade: ${(p.reasons||p.scoreReasons||[]).join(', ')}.`,createdAt:todayISO()};
+    const lead={id:uid('lead'),company:p.name,contact:p.contact||p.name,phone:p.whatsapp||p.phone||'',email:p.email||'',service:p.recommendedService||(!p.website?'Site / posicionamento digital':'Diagnóstico digital'),source:'Captação Achilles',stage:'new',score:Number(p.score||60),value:0,lastContact:todayISO(),nextAction:'Abordagem inicial',notes:`${p.category||'Empresa local'}${p.address?` · ${p.address}`:''}. Melhor encaixe: ${p.recommendedService||'Diagnóstico digital'}. Oportunidade: ${(p.reasons||p.scoreReasons||[]).join(', ')}.`,createdAt:todayISO()};
     state.data.leads.unshift(lead); p.crmLeadId=lead.id; upsertProspect(p); logActivity('Prospect adicionado ao CRM',`${p.name} entrou com score ${p.score}.`); saveData(); syncRecord('leads',lead); toast('Adicionado ao CRM',`${p.name} agora está no pipeline.`); renderCurrentPage();
   }
 

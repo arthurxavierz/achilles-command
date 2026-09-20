@@ -22,6 +22,7 @@
 
 import { requireInternalAuth, authError } from '../lib/auth.mjs';
 import { bestPhone, classifyPhone, QUALITY_LABEL } from '../lib/telefone.mjs';
+import { nomeApresentavel, tituloCase, primeiroNome } from '../lib/texto.mjs';
 
 const CNPJA_ENDPOINT = 'https://api.cnpja.com/office';
 const IBGE_MUNICIPIOS = 'https://servicodados.ibge.gov.br/api/v1/localidades/estados';
@@ -314,7 +315,7 @@ async function searchSupabase({ request, cnaes, states, cities, onlyActive, incl
   }
 
   const url = new URL(`${base}/rest/v1/cnpj_busca`);
-  url.searchParams.set('select', 'cnpj,nome,razao_social,nome_fantasia,porte,cnae,uf,municipio,bairro,logradouro,cep,situacao,data_inicio,telefone,telefone_tipo,email,competencia');
+  url.searchParams.set('select', 'cnpj,nome,razao_social,nome_fantasia,responsavel,porte,cnae,uf,municipio,bairro,logradouro,cep,situacao,data_inicio,telefone,telefone_tipo,email,competencia');
   url.searchParams.set('uf', `in.(${states.join(',')})`);
 
   if (includeSide) {
@@ -349,12 +350,22 @@ function mapRow(row) {
   const contato = classifyPhone(String(row.telefone || '').replace(/^55/, ''));
   const qualidade = { ...contato, qualityLabel: QUALITY_LABEL[contato.quality] };
   const cnpj = String(row.cnpj || '').padStart(14, '0');
-  const nome = String(row.nome || row.razao_social || '').trim();
-  if (!nome) return null;
+  const bruto = String(row.nome || row.razao_social || '').trim();
+  if (!bruto) return null;
+
+  // A Receita entrega tudo em caixa alta e com o sufixo societário colado.
+  // Isso vai para o card e para dentro da mensagem, então precisa parecer
+  // escrito por gente: "Restaurante Sabor Mineiro", não "RESTAURANTE SABOR
+  // MINEIRO LTDA".
+  const nome = nomeApresentavel(bruto) || bruto;
 
   const cnaeCode = String(row.cnae || '').padStart(7, '0');
-  const endereco = [row.logradouro, row.bairro, [row.municipio, row.uf].filter(Boolean).join(' - ')]
+  const cidade = tituloCase(row.municipio || '');
+  const endereco = [tituloCase(row.logradouro || ''), tituloCase(row.bairro || ''), [cidade, row.uf].filter(Boolean).join(' - ')]
     .filter(Boolean).join(' · ');
+  // nomeApresentavel e nao tituloCase: o Empresario Individual vem com o
+  // documento colado no nome ("00.540.815 MIDIA MEDEIROS").
+  const responsavel = nomeApresentavel(row.responsavel || '');
 
   const p = {
     id: `cnpj_${cnpj}`,
@@ -362,12 +373,18 @@ function mapRow(row) {
     sourceId: cnpj,
     name: nome,
     legalName: row.razao_social || '',
+    // Quem assina pela empresa no cadastro. Costuma ser quem atende o
+    // telefone num negócio pequeno, mas é uma aposta, não um fato.
+    contact: responsavel,
+    contactFirstName: primeiroNome(responsavel),
     cnpj,
     category: CNAE_TEXTO.get(cnaeCode) || `CNAE ${cnaeCode}`,
     cnae: CNAE_TEXTO.get(cnaeCode) || '',
     cnaeCode,
+    // Como as pessoas chamam o negócio, para a mensagem soar falada.
+    segment: CNAE_SEGMENTO.get(cnaeCode) || '',
     address: endereco,
-    city: row.municipio || '',
+    city: cidade,
     state: row.uf || '',
     phone: qualidade.phone,
     whatsapp: qualidade.whatsapp,
@@ -385,7 +402,7 @@ function mapRow(row) {
     size: PORTE[Number(row.porte)] || '',
     mei: false,
     head: cnpj.slice(8, 12) === '0001',
-    googleUrl: `https://www.google.com/search?q=${encodeURIComponent(`${nome} ${row.municipio || ''} ${row.uf || ''}`)}`,
+    googleUrl: `https://www.google.com/search?q=${encodeURIComponent(`${nome} ${cidade} ${row.uf || ''}`)}`,
     mapUrl: '',
     rating: 0,
     userRatingCount: 0,
@@ -401,6 +418,10 @@ const PORTE = { 1: 'ME', 3: 'EPP', 5: 'Demais' };
    uma das centenas de milhares de linhas seria desperdício. A descrição vem
    do mesmo assets/cnae.json que a tela usa para sugerir. */
 const CNAE_TEXTO = new Map();
+/* Como as pessoas chamam o negócio: "restaurante", "salão de beleza",
+   "oficina mecânica". A descrição oficial é jurídica demais para entrar numa
+   mensagem — ninguém escreve "quem procura restaurantes e similares". */
+const CNAE_SEGMENTO = new Map();
 let catalogoCarregado = false;
 
 async function carregarCatalogoCnae(request) {
@@ -410,7 +431,10 @@ async function carregarCatalogoCnae(request) {
     const origem = new URL(request.url).origin;
     const { ok, data } = await fetchJson(`${origem}/assets/cnae.json`, {}, 8000);
     if (ok && Array.isArray(data?.subclasses)) {
-      for (const linha of data.subclasses) CNAE_TEXTO.set(linha.id, linha.d);
+      for (const linha of data.subclasses) {
+        CNAE_TEXTO.set(linha.id, linha.d);
+        if (linha.r) CNAE_SEGMENTO.set(linha.id, linha.r);
+      }
     }
   } catch {
     // Sem o catálogo a busca continua: o card mostra "CNAE 8630503".

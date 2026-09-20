@@ -4,7 +4,9 @@
    Rode com `node tools/gerar-cnae.mjs` na raiz do projeto. O IBGE muda a
    tabela de tempos em tempos; regerar é a forma de atualizar o extrator.
 
-   Além do código e da descrição, cada subclasse ganha uma lista de apelidos.
+   Além do código e da descrição, cada subclasse ganha uma lista de apelidos e
+   um rótulo de exibição (`r`), que é o apelido principal já acentuado — o que
+   entra nas mensagens de abordagem.
    Motivo: a descrição oficial é jurídica, não é como as pessoas falam. Quem
    quer prospectar pet shop procura "pet shop", não "comércio varejista de
    animais vivos e de artigos e alimentos para animais de estimação"; quem
@@ -136,6 +138,27 @@ const APELIDOS = {
   'coworking': /escrit[óo]rio virtual|aluguel de .* comerciais/i
 };
 
+/* Os apelidos acima são chaves de busca, então vivem sem acento — quem digita
+   "clinica" precisa achar. Mas o mesmo termo vai para dentro de uma mensagem
+   de WhatsApp ("quem procura clínica na região"), e aí acento faz falta.
+   Este mapa dá a forma de exibição; o que não está aqui já está apresentável. */
+const ROTULOS = {
+  'clinica': 'clínica', 'consultorio': 'consultório', 'medico': 'médico',
+  'laboratorio': 'laboratório', 'veterinario': 'veterinário', 'farmacia': 'farmácia',
+  'otica': 'ótica', 'estetica': 'estética', 'salao de beleza': 'salão de beleza',
+  'acai': 'açaí', 'oficina mecanica': 'oficina mecânica', 'autopecas': 'autopeças',
+  'concessionaria': 'concessionária', 'imobiliaria': 'imobiliária',
+  'corretor de imoveis': 'corretor de imóveis', 'vidracaria': 'vidraçaria',
+  'grafica': 'gráfica', 'logistica': 'logística', 'mudanca': 'mudança',
+  'seguranca': 'segurança', 'informatica': 'informática',
+  'assistencia tecnica': 'assistência técnica', 'calcados': 'calçados',
+  'material de construcao': 'material de construção', 'funeraria': 'funerária',
+  'agropecuaria': 'agropecuária', 'posto de combustivel': 'posto de combustível',
+  'agencia de marketing': 'agência de marketing', 'ti': 'TI'
+};
+
+const rotuloDe = termo => ROTULOS[termo] || termo;
+
 const res = await fetch('https://servicodados.ibge.gov.br/api/v2/cnae/subclasses');
 if (!res.ok) throw new Error(`IBGE respondeu ${res.status}`);
 const data = await res.json();
@@ -162,7 +185,7 @@ const rows = data
       id: String(s.id).replace(/\D/g, '').padStart(7, '0'),
       d: titleCase(descricao),
       s: titleCase(secao.descricao || ''),
-      ...(apelidos.length ? { a: apelidos.join(' ') } : {})
+      ...(apelidos.length ? { a: apelidos.join(' '), r: rotuloDe(apelidos[0]) } : {})
     };
   })
   .sort((a, b) => a.id.localeCompare(b.id));

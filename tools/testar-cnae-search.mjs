@@ -22,6 +22,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-de-teste';
 process.env.CNPJA_TOKEN = 'token-de-teste';
 
 const { classifyPhone, bestPhone } = await import(new URL('../netlify/lib/telefone.mjs', import.meta.url));
+const { nomeApresentavel, primeiroNome } = await import(new URL('../netlify/lib/texto.mjs', import.meta.url));
 
 let falhas = 0;
 function check(nome, cond, extra = '') {
@@ -52,6 +53,21 @@ check('o rótulo diz que o 9º dígito foi reconstruído',
 check('o rótulo do fixo avisa que não abre WhatsApp',
   /não abre/i.test(bestPhone(['3433334444']).qualityLabel));
 
+/* --- 1b. nomes vindos da Receita ------------------------------------------ */
+
+console.log('');
+console.log('--- nomes ---');
+check('tira o sufixo societário', nomeApresentavel('RESTAURANTE SABOR MINEIRO LTDA') === 'Restaurante Sabor Mineiro');
+check('tira dois sufixos seguidos', nomeApresentavel('PADARIA CENTRAL LTDA ME') === 'Padaria Central');
+check('tira o documento no fim do nome', nomeApresentavel('JOAO DA SILVA 12345678900') === 'Joao da Silva');
+check('tira o documento no começo do nome', nomeApresentavel('00.540.815 MIDIA MEDEIROS') === 'Midia Medeiros');
+check('preposição fica minúscula', nomeApresentavel('COMERCIO DE ROUPAS DA MODA SA') === 'Comercio de Roupas da Moda');
+check('respeita nome já escrito por gente', nomeApresentavel('Clínica Já Formatada') === 'Clínica Já Formatada');
+check('não devolve vazio quando o nome é só sufixo', nomeApresentavel('LTDA').length > 0);
+check('primeiro nome ignora inicial solta', primeiroNome('J SILVA') === '');
+check('primeiro nome ignora partícula', primeiroNome('DE SOUZA LIMA') === '');
+check('primeiro nome aceita nome curto de verdade', primeiroNome('LI WANG') === 'Li');
+
 /* --- 2. simulação de rede ------------------------------------------------- */
 
 const chamadas = [];
@@ -66,9 +82,10 @@ let cargaDaBase = {
 
 const linha = (i, extra = {}) => ({
   cnpj: 11222333000100 + i,
-  nome: `Clínica ${i}`,
+  nome: `CLINICA ${i} LTDA`,
   razao_social: `EMPRESA ${i} LTDA`,
-  nome_fantasia: `Clínica ${i}`,
+  nome_fantasia: `CLINICA ${i} LTDA`,
+  responsavel: 'JOAO BATISTA DE SOUZA 12345678900',
   porte: 1,
   cnae: 8630503,
   uf: 'MG',
@@ -153,6 +170,20 @@ check('fixo não recebe WhatsApp',
 check('CNPJ sai com 14 dígitos', data.results.every(r => /^\d{14}$/.test(r.cnpj)), data.results[0].cnpj);
 check('descrição do CNAE vem do catálogo',
   data.results[0].cnae === 'Atividade Médica Ambulatorial', data.results[0].cnae);
+check('nome sai apresentável, não em caixa alta',
+  data.results[0].name === 'Clinica 1', data.results[0].name);
+check('razão social crua fica guardada à parte',
+  data.results[0].legalName === 'EMPRESA 1 LTDA', data.results[0].legalName);
+check('responsável vem limpo, sem o documento',
+  data.results[0].contact === 'Joao Batista de Souza', data.results[0].contact);
+check('primeiro nome do responsável sai separado',
+  data.results[0].contactFirstName === 'Joao', data.results[0].contactFirstName);
+check('segmento vem em linguagem de gente',
+  typeof data.results[0].segment === 'string');
+check('cidade sai com caixa apresentável',
+  data.results[0].city === 'Uberaba', data.results[0].city);
+check('a consulta pede o responsável ao banco',
+  new URL(ultimaChamada('cnpj_busca')).searchParams.get('select').includes('responsavel'));
 check('a resposta informa a competência da base', data.base?.competencia === '2026-09');
 check('o aviso não promete WhatsApp', /inferência, não confirmação/i.test(data.note));
 

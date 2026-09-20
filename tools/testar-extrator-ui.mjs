@@ -51,6 +51,7 @@ window.fetch = async url => {
 const empresa = (i, quality) => ({
   id: `cnpj_1122233300010${i}`, source: 'Receita Federal (CNAE)', sourceId: `1122233300010${i}`,
   name: `Clínica ${i}`, legalName: `EMPRESA ${i} LTDA`, cnpj: `1122233300010${i}`,
+  contact: 'Joao Batista de Souza', contactFirstName: 'Joao', segment: 'clínica',
   category: 'Atividade médica ambulatorial', cnae: 'Atividade médica ambulatorial', cnaeCode: '8630503',
   address: 'Rua das Flores, 100 · Centro · Uberaba - MG', city: 'Uberaba', state: 'MG',
   phone: quality === 'none' ? '' : '+5534991234560',
@@ -234,6 +235,30 @@ check('volta para a lista de captação', !!doc.querySelector('.prospect-card'))
 check('card mostra o WhatsApp disponível', !!doc.querySelector('[data-action="prospect-whatsapp"]'));
 check('card não afirma ausência de site', !app.textContent.includes('Sem site identificado'));
 check('card avisa que o site não foi verificado', app.textContent.includes('Site não verificado'));
+// Escopo no card: o JSON da ponte para a extensão guarda o número cru de
+// propósito, e ele também conta como texto da página.
+const cardTexto = doc.querySelector('.prospect-card').textContent;
+check('card mostra o responsável', cardTexto.includes('Joao Batista de Souza'));
+check('card mostra o telefone formatado', /\(34\)\s?9\d{4}-\d{4}/.test(cardTexto), cardTexto.match(/\(34\)[^·]*/)?.[0]);
+check('card não mostra o telefone cru', !cardTexto.includes('+5534'));
+check('card marca o WhatsApp como provável', cardTexto.includes('WhatsApp provável'));
+
+// --- a mensagem que cai no WhatsApp -----------------------------------------
+doc.querySelector('[data-action="prospect-approach"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+await wait(60);
+const mensagem = doc.getElementById('prospect-approach-text')?.value || '';
+check('modal de abordagem abre', mensagem.length > 50);
+check('mensagem cumprimenta pelo primeiro nome', mensagem.includes('{{saudacao}}, Joao!'), mensagem.slice(0, 60));
+check('mensagem cita o segmento do negócio', mensagem.includes('clínica'));
+check('mensagem cita a cidade', mensagem.includes('Uberaba'));
+check('mensagem contrai a preposição com o artigo',
+  !/por o|por a|de o|em o/.test(mensagem), mensagem.match(/por [oa] \S+/)?.[0]);
+check('mensagem não afirma que a empresa não tem site',
+  !/n[ãa]o (encontrei|tem) (um )?site/i.test(mensagem));
+check('mensagem termina com pergunta', mensagem.trim().endsWith('?'));
+check('a saudação continua como variável, resolvida só no envio',
+  mensagem.includes('{{saudacao}}'));
+doc.querySelector('.modal-backdrop')?.remove();
 
 // a lista aparece no extrator e pode ser reaberta
 doc.querySelector('[data-prospect-mode="cnae"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
