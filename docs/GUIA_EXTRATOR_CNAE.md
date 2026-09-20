@@ -30,7 +30,11 @@ A segunda cria `cnpj_estabelecimentos`, `cnpj_empresas` e a visão `cnpj_busca`,
 
 ### Passo 2 — Carregar a base
 
-Você **não precisa baixar nada à mão**. O carregador lê os arquivos direto da Receita, descomprime em memória e guarda só o que passa no filtro — você precisa de banda, não de espaço em disco.
+Você **não precisa baixar nada à mão**. O carregador busca os arquivos na Receita, lê e guarda só o que passa no filtro.
+
+Cada arquivo é baixado para uma pasta de cache (`.cache-receita`) e apagado assim que é lido, então o pico de disco é o maior arquivo — 2,1 GB — e não os 5 GB somados. Use `--manter` se quiser guardar os ZIPs para a próxima vez.
+
+**O download é retomável.** Numa baixada de 5 GB a conexão cai, e quando cai ele continua de onde parou em vez de recomeçar, tentando até 8 vezes. Se mesmo assim o comando morrer, rodar de novo é barato: o que já estiver inteiro no cache não é baixado outra vez, e o que já foi gravado no banco é regravado por cima sem duplicar.
 
 Antes, as duas variáveis de ambiente (as mesmas do Netlify). No PowerShell:
 

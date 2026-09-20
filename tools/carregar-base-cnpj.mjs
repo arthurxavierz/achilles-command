@@ -5,9 +5,14 @@
    recorte que você usa para prospectar e grava no seu Supabase. Depois disso
    o extrator por CNAE busca na sua própria base, sem custo por consulta.
 
-   Os arquivos somam cerca de 5 GB compactados. Este script NÃO salva os ZIPs
-   em disco: ele lê e descomprime em memória, linha a linha, e só guarda o que
-   passa no filtro. Você precisa de banda, não de espaço.
+   Os arquivos somam cerca de 5 GB compactados. Cada um é baixado para uma
+   pasta de cache, lido, e apagado em seguida — então o pico de disco é o
+   tamanho do maior arquivo, 2,1 GB, e não a soma.
+
+   O download é retomável. Se a conexão cair no meio (e numa baixada dessas
+   ela cai), a tentativa seguinte continua de onde parou em vez de recomeçar.
+   Rodar o comando de novo depois de um erro também é barato: o que já estiver
+   inteiro no cache não é baixado outra vez.
 
    Uso:
 
@@ -31,7 +36,9 @@
      --arquivos 0,1,2    só estes arquivos da Receita
      --lote 1000         linhas por requisição ao Supabase
      --limpar-antigas    ao final, apaga as linhas de competências anteriores
-     --local C:/pasta    lê os ZIPs já baixados dessa pasta, em vez da internet
+     --local C:/pasta    usa os ZIPs já baixados dessa pasta, sem baixar nada
+     --cache C:/pasta    onde guardar o download (padrão: .cache-receita)
+     --manter            não apaga os ZIPs depois de processar
 
    Precisa de duas variáveis de ambiente (as mesmas do Netlify):
      SUPABASE_URL
@@ -44,7 +51,8 @@
 
 import zlib from 'node:zlib';
 import { Readable } from 'node:stream';
-import { createReadStream, readFileSync } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 /* --- ajustes ------------------------------------------------------------- */
@@ -83,7 +91,7 @@ const AUTH = 'Basic ' + Buffer.from(`${TOKEN_PUBLICO}:`).toString('base64');
 /* --- linha de comando ---------------------------------------------------- */
 
 function lerArgumentos(argv) {
-  const cfg = { ...AJUSTES, modo: null, limparAntigas: false, local: '' };
+  const cfg = { ...AJUSTES, modo: null, limparAntigas: false, local: '', cache: '.cache-receita', manter: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const proximo = () => argv[++i];
@@ -99,6 +107,8 @@ function lerArgumentos(argv) {
     else if (a === '--cnaes') { cfg.cnaes = proximo().split(',').map(s => Number(String(s).replace(/\D/g, ''))).filter(Boolean); cfg.cnaesLocais = false; }
     else if (a === '--arquivos') cfg.arquivos = proximo().split(',').map(Number).filter(n => n >= 0 && n <= 9);
     else if (a === '--local') cfg.local = proximo();
+    else if (a === '--cache') cfg.cache = proximo();
+    else if (a === '--manter') cfg.manter = true;
     else if (a === '--lote') cfg.lote = Math.max(100, Math.min(5000, Number(proximo()) || 1000));
     else { console.error(`Opção desconhecida: ${a}`); process.exit(1); }
   }
@@ -191,19 +201,85 @@ const limpar = v => {
   return s && s !== '0' ? s : null;
 };
 
+/* --- download com retomada -------------------------------------------------
+   Antes o arquivo era lido direto da rede para o descompressor, sem tocar no
+   disco. Elegante, e errado para o tamanho do problema: o Estabelecimentos0
+   tem 2,1 GB e uma conexão doméstica cai. Quando caía, o processo morria com
+   ECONNRESET e a carga toda recomeçava do zero.
+
+   Agora cada arquivo é baixado para uma pasta de cache, e uma queda custa só
+   o que faltava: a requisição seguinte pede `Range: bytes=<o que já tenho>-`
+   e continua de onde parou. Se o arquivo já estiver inteiro no cache, nem
+   baixa de novo — o que torna barato repetir a carga depois de um erro.
+
+   Por padrão cada arquivo é apagado assim que é processado, então o pico de
+   disco é o tamanho do maior deles. Com --manter o cache fica para a próxima
+   competência. */
+async function tamanhoRemoto(url) {
+  const res = await fetch(url, { method: 'HEAD', headers: { Authorization: AUTH } });
+  if (!res.ok) throw new Error(`${url} respondeu ${res.status}`);
+  return Number(res.headers.get('content-length') || 0);
+}
+
+async function garantirArquivo(url, destino, rotulo) {
+  const total = await tamanhoRemoto(url);
+  let baixado = existsSync(destino) ? statSync(destino).size : 0;
+
+  if (total && baixado === total) {
+    console.log(`  ${rotulo}: já está no cache (${mb(total)} MB)`);
+    return destino;
+  }
+  // Maior que o remoto significa cache de outra competência: recomeça.
+  if (baixado > total) { rmSync(destino, { force: true }); baixado = 0; }
+
+  for (let tentativa = 1; tentativa <= 8; tentativa++) {
+    try {
+      const headers = { Authorization: AUTH };
+      if (baixado > 0) headers.Range = `bytes=${baixado}-`;
+
+      const res = await fetch(url, { headers });
+      if (!res.ok && res.status !== 206) throw new Error(`HTTP ${res.status}`);
+      // Servidor ignorou o Range e mandou tudo: recomeça o arquivo.
+      if (baixado > 0 && res.status === 200) { rmSync(destino, { force: true }); baixado = 0; }
+
+      const saida = createWriteStream(destino, { flags: baixado > 0 ? 'a' : 'w' });
+      let ultimoAviso = Date.now();
+
+      await pipeline(
+        Readable.fromWeb(res.body),
+        async function* (origem) {
+          for await (const pedaco of origem) {
+            baixado += pedaco.length;
+            if (Date.now() - ultimoAviso > 3000) {
+              ultimoAviso = Date.now();
+              const pct = total ? ` (${(baixado / total * 100).toFixed(0)}%)` : '';
+              process.stdout.write(`\r  ${rotulo}: ${mb(baixado)} de ${mb(total)} MB${pct}     `);
+            }
+            yield pedaco;
+          }
+        },
+        saida
+      );
+
+      process.stdout.write(`\r  ${rotulo}: ${mb(baixado)} MB baixados              \n`);
+      return destino;
+    } catch (erro) {
+      baixado = existsSync(destino) ? statSync(destino).size : 0;
+      if (tentativa === 8) {
+        throw new Error(`não consegui baixar ${rotulo} depois de 8 tentativas: ${erro.message}`);
+      }
+      const espera = Math.min(30, tentativa * 5);
+      process.stdout.write(`\r  ${rotulo}: conexão caiu em ${mb(baixado)} MB. Retomando em ${espera}s (tentativa ${tentativa + 1}/8)...\n`);
+      await new Promise(r => setTimeout(r, espera * 1000));
+    }
+  }
+}
+
 /* --- leitura dos ZIPs da Receita ------------------------------------------
    Cada ZIP tem um CSV só. Lemos o cabeçalho local para achar onde começam os
    dados e jogamos o resto direto no inflate, sem gravar nada em disco. */
-async function* linhasDoZip(origemDescricao, caminhoLocal = '') {
-  let origem;
-  if (caminhoLocal) {
-    origem = createReadStream(caminhoLocal);
-  } else {
-    const res = await fetch(origemDescricao, { headers: { Authorization: AUTH } });
-    if (!res.ok) throw new Error(`${origemDescricao} respondeu ${res.status}`);
-    origem = Readable.fromWeb(res.body);
-  }
-
+async function* linhasDoZip(caminhoLocal) {
+  const origem = createReadStream(caminhoLocal);
   const inflate = zlib.createInflateRaw();
 
   let cabecalhoLido = false;
@@ -236,15 +312,9 @@ async function* linhasDoZip(origemDescricao, caminhoLocal = '') {
   if (resto.trim()) yield resto;
 }
 
-async function baixarMunicipios(competencia, local = '') {
-  let buf;
-  if (local) {
-    buf = readFileSync(path.join(local, 'Municipios.zip'));
-  } else {
-    const res = await fetch(`${BASE}/${competencia}/Municipios.zip`, { headers: { Authorization: AUTH } });
-    if (!res.ok) throw new Error(`Municipios.zip respondeu ${res.status}`);
-    buf = Buffer.from(await res.arrayBuffer());
-  }
+async function baixarMunicipios(cfg) {
+  const caminho = await arquivoDaReceita(cfg, 'Municipios.zip');
+  const buf = readFileSync(caminho);
   const inicio = 30 + buf.readUInt16LE(26) + buf.readUInt16LE(28);
   const texto = zlib.inflateRawSync(buf.subarray(inicio)).toString('latin1');
   const mapa = new Map();
@@ -281,6 +351,21 @@ async function enviarLote(linhas, supabaseUrl, chave, tabela = 'cnpj_estabelecim
   }
 }
 
+/* Devolve o caminho de um arquivo da Receita: o que já está em --local, ou
+   um download retomável para a pasta de cache. */
+async function arquivoDaReceita(cfg, nome) {
+  if (cfg.local) return path.join(cfg.local, nome);
+  mkdirSync(cfg.cache, { recursive: true });
+  const destino = path.join(cfg.cache, `${cfg.competencia}-${nome}`);
+  await garantirArquivo(`${BASE}/${cfg.competencia}/${nome}`, destino, nome);
+  return destino;
+}
+
+function descartar(cfg, caminho) {
+  if (cfg.local || cfg.manter) return;
+  try { rmSync(caminho, { force: true }); } catch { /* arquivo em uso: some na próxima */ }
+}
+
 /* --- execução ------------------------------------------------------------- */
 
 const cfg = lerArgumentos(process.argv.slice(2));
@@ -305,7 +390,7 @@ console.log(`Modo ................. ${gravando ? 'CARREGAR no Supabase' : 'apena
 console.log('');
 
 console.log('Baixando a tabela de municípios...');
-const municipios = await baixarMunicipios(cfg.competencia, cfg.local);
+const municipios = await baixarMunicipios(cfg);
 console.log(`${num(municipios.size)} municípios.\n`);
 
 let lidas = 0;
@@ -321,8 +406,8 @@ for (const indice of cfg.arquivos) {
   console.log(`--- ${arquivo} ---`);
   const antes = aceitas;
 
-  const origem = cfg.local ? path.join(cfg.local, arquivo) : '';
-  for await (const linha of linhasDoZip(`${BASE}/${cfg.competencia}/${arquivo}`, origem)) {
+  const caminho = await arquivoDaReceita(cfg, arquivo);
+  for await (const linha of linhasDoZip(caminho)) {
     lidas++;
     if (lidas % 1000000 === 0) {
       const min = ((Date.now() - inicio) / 60000).toFixed(1);
@@ -392,6 +477,9 @@ for (const indice of cfg.arquivos) {
     }
   }
 
+  // Apagado assim que é lido: o pico de disco fica sendo o maior arquivo,
+  // 2,1 GB, em vez dos 5 GB somados. Com --manter, o cache é preservado.
+  descartar(cfg, caminho);
   console.log(`  ${arquivo}: +${num(aceitas - antes)} empresas aceitas\n`);
 }
 
@@ -411,9 +499,10 @@ if (gravando && basicosNecessarios.size) {
   // do arquivo 1 pode estar em qualquer um dos dez.
   for (const indice of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) {
     const arquivo = `Empresas${indice}.zip`;
-    const origemEmpresa = cfg.local ? path.join(cfg.local, arquivo) : '';
+    let caminhoEmpresa;
     try {
-      for await (const linha of linhasDoZip(`${BASE}/${cfg.competencia}/${arquivo}`, origemEmpresa)) {
+      caminhoEmpresa = await arquivoDaReceita(cfg, arquivo);
+      for await (const linha of linhasDoZip(caminhoEmpresa)) {
         const c = separarCampos(linha);
         if (c.length < 6) continue;
         const basico = Number(String(c[0]).replace(/\D/g, ''));
@@ -427,6 +516,7 @@ if (gravando && basicosNecessarios.size) {
     } catch (erro) {
       console.warn(`  ${arquivo}: ${erro.message}`);
     }
+    if (caminhoEmpresa) descartar(cfg, caminhoEmpresa);
     console.log(`  ${arquivo}: ${num(empresas)} razões sociais até aqui`);
   }
   if (lote.length) await enviarLote(lote, supabaseUrl, chave, 'cnpj_empresas');

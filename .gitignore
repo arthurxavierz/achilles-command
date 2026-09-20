@@ -19,3 +19,6 @@ COMECE_AQUI.md
 # Arquivos temporários
 *.log
 *.tmp
+
+# Cache do carregador da base de CNPJ (ZIPs da Receita, alguns GB)
+.cache-receita/
