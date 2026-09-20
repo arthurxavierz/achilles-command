@@ -5,6 +5,7 @@ window.ACHILLES_CONFIG = {
   supabaseAnonKey: "SUA_CHAVE_ANON_PUBLICA",
   prospectingUrl: "/.netlify/functions/prospect-search",
   prospectEnrichUrl: "/.netlify/functions/prospect-enrich",
+  cnaeSearchUrl: "/.netlify/functions/cnae-search",
   leadIntakeUrl: "/.netlify/functions/lead-intake",
   aiProxyUrl: "/.netlify/functions/ai-proxy",
   whatsappSendUrl: "/.netlify/functions/whatsapp-send",

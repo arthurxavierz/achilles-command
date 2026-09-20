@@ -65,6 +65,19 @@ create table if not exists public.leads (
 );
 
 
+-- Cada importação do extrator por CNAE vira uma lista nomeada; é por ela que
+-- você sabe de onde veio cada contato e consegue apagar tudo de uma vez.
+create table if not exists public.prospect_lists (
+  id text primary key,
+  organization_id uuid not null default public.current_organization_id() references public.organizations(id) on delete cascade,
+  name text not null,
+  source text not null default 'Extrator por CNAE',
+  filters jsonb not null default '{}'::jsonb,
+  total integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.prospects (
   id text primary key,
   organization_id uuid not null default public.current_organization_id() references public.organizations(id) on delete cascade,
@@ -94,6 +107,19 @@ create table if not exists public.prospects (
   approach_message text,
   approach_note text,
   contacted_at timestamptz,
+  -- Campos do extrator por CNAE: o Google Places não tem cadastro, a Receita
+  -- não tem nota nem avaliações. As duas origens convivem na mesma tabela.
+  cnpj text,
+  cnae text,
+  cnae_code text,
+  legal_name text,
+  city text,
+  state text,
+  founded_at date,
+  -- Telefone da Receita é candidato a WhatsApp, nunca WhatsApp confirmado.
+  phone_quality text check (phone_quality in ('mobile','landline','partial','none')),
+  list_id text references public.prospect_lists(id) on delete set null,
+  list_name text,
   score integer not null default 50 check (score between 0 and 100),
   score_band text,
   score_reasons jsonb not null default '[]'::jsonb,
@@ -251,7 +277,7 @@ $$;
 DO $$
 DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['leads','prospects','conversations','campaigns','projects','proposals','tasks','automations']
+  FOREACH t IN ARRAY ARRAY['leads','prospects','prospect_lists','conversations','campaigns','projects','proposals','tasks','automations']
   LOOP
     EXECUTE format('drop trigger if exists %I_touch_updated_at on public.%I', t, t);
     EXECUTE format('create trigger %I_touch_updated_at before update on public.%I for each row execute function public.touch_updated_at()', t, t);
@@ -262,6 +288,7 @@ alter table public.organizations enable row level security;
 alter table public.organization_members enable row level security;
 alter table public.leads enable row level security;
 alter table public.prospects enable row level security;
+alter table public.prospect_lists enable row level security;
 alter table public.conversations enable row level security;
 alter table public.campaigns enable row level security;
 alter table public.message_queue enable row level security;
@@ -281,7 +308,7 @@ create policy "members read memberships" on public.organization_members for sele
 DO $$
 DECLARE t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['leads','prospects','conversations','campaigns','message_queue','projects','proposals','tasks','automations','services','app_settings','activities']
+  FOREACH t IN ARRAY ARRAY['leads','prospects','prospect_lists','conversations','campaigns','message_queue','projects','proposals','tasks','automations','services','app_settings','activities']
   LOOP
     EXECUTE format('drop policy if exists "org select" on public.%I', t);
     EXECUTE format('drop policy if exists "org insert" on public.%I', t);
@@ -296,6 +323,12 @@ END $$;
 
 create index if not exists prospects_org_score_idx on public.prospects(organization_id, score desc);
 create index if not exists prospects_org_created_idx on public.prospects(organization_id, created_at desc);
+create index if not exists prospects_list_idx on public.prospects(organization_id, list_id);
+create index if not exists prospects_org_cnae_idx on public.prospects(organization_id, cnae_code, score desc);
+-- Um CNPJ não pode virar dois contatos na mesma organização. Parcial porque
+-- prospect vindo do Google Places não tem CNPJ.
+create unique index if not exists prospects_org_cnpj_idx on public.prospects(organization_id, cnpj) where cnpj is not null and cnpj <> '';
+create index if not exists prospect_lists_org_idx on public.prospect_lists(organization_id, created_at desc);
 create index if not exists leads_org_stage_idx on public.leads(organization_id, stage);
 create index if not exists leads_org_last_contact_idx on public.leads(organization_id, last_contact desc);
 create index if not exists conversations_org_updated_idx on public.conversations(organization_id, updated_at desc);

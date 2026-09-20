@@ -123,6 +123,7 @@
       { id:"svc_5", name:"Automação de processo", basePrice:3200 }
     ],
     prospects: [],
+    prospectLists: [],
     settings: {
       company:"Achilles Media",
       ownerName:"Arthur",
@@ -155,7 +156,17 @@
     data: loadData(),
     modal: null,
     assistantMessages: [],
-    prospecting: { results: [], origin: null, query: "", city: "", state: "MG", radiusKm: 20, limit: 30, loading: false, view: "split", filters: { contact: [], fit: [] } }
+    prospecting: { mode: "places", results: [], origin: null, query: "", city: "", state: "MG", radiusKm: 20, limit: 30, loading: false, view: "split", filters: { contact: [], fit: [] } },
+    /* Extrator por CNAE. Vive separado de `prospecting` porque é uma etapa
+       anterior: aqui se monta e revisa a prévia; só depois de importar é que
+       as empresas entram na lista de captação e ganham abordagem. */
+    extractor: {
+      cnaes: [], states: ["MG"], cities: [],
+      onlyActive: true, onlyWithPhone: true, onlyMobile: false, includeSide: false,
+      foundedFrom: "", foundedTo: "", limit: 100,
+      loading: false, results: [], selected: [], available: 0, searched: false,
+      cnaeTerm: "", cnaeSuggestions: [], listName: ""
+    }
   };
 
   let supabaseClient = null;
@@ -180,12 +191,12 @@
       if (stored) return { ...structuredClone(seed), ...JSON.parse(stored) };
       if (CFG.demoMode) return structuredClone(seed);
       return {
-        leads: [], prospects: [], conversations: [], campaigns: [], projects: [], proposals: [], tasks: [],
+        leads: [], prospects: [], prospectLists: [], conversations: [], campaigns: [], projects: [], proposals: [], tasks: [],
         automations: structuredClone(seed.automations), services: structuredClone(seed.services),
         settings: structuredClone(seed.settings), activities: []
       };
     } catch {
-      return CFG.demoMode ? structuredClone(seed) : { leads: [], prospects: [], conversations: [], campaigns: [], projects: [], proposals: [], tasks: [], automations: structuredClone(seed.automations), services: structuredClone(seed.services), settings: structuredClone(seed.settings), activities: [] };
+      return CFG.demoMode ? structuredClone(seed) : { leads: [], prospects: [], prospectLists: [], conversations: [], campaigns: [], projects: [], proposals: [], tasks: [], automations: structuredClone(seed.automations), services: structuredClone(seed.services), settings: structuredClone(seed.settings), activities: [] };
     }
   }
 
@@ -205,20 +216,34 @@
     state.data.activities = state.data.activities.slice(0, 50);
   }
 
+  /* No estado local a coleção é camelCase; no Postgres a tabela é snake_case.
+     Só divergem quando o nome tem mais de uma palavra. */
+  const REMOTE_TABLE = { prospectLists: "prospect_lists" };
+  const remoteTable = name => REMOTE_TABLE[name] || name;
+
   async function syncRecord(table, record) {
     if (!supabaseClient) return;
     try {
-      await supabaseClient.from(table).upsert(toRemoteRecord(record, table));
+      await supabaseClient.from(remoteTable(table)).upsert(toRemoteRecord(record, table));
     } catch (error) {
       console.warn("Falha ao sincronizar", table, error);
     }
   }
 
+  async function removeRecord(table, id) {
+    if (!supabaseClient) return;
+    try {
+      await supabaseClient.from(remoteTable(table)).delete().eq("id", id);
+    } catch (error) {
+      console.warn("Falha ao remover", table, error);
+    }
+  }
+
   async function loadRemoteData() {
     if (!supabaseClient) return;
-    const tables = ["leads", "prospects", "conversations", "campaigns", "projects", "proposals", "tasks", "automations", "services"];
+    const tables = ["leads", "prospects", "prospectLists", "conversations", "campaigns", "projects", "proposals", "tasks", "automations", "services"];
     for (const table of tables) {
-      const { data, error } = await supabaseClient.from(table).select("*").order("created_at", { ascending: false });
+      const { data, error } = await supabaseClient.from(remoteTable(table)).select("*").order("created_at", { ascending: false });
       if (!error && Array.isArray(data)) state.data[table] = data.map(normalizeRemoteRecord);
     }
     saveData();
@@ -233,7 +258,9 @@
       scoreBand: "score_band", scoreReasons: "score_reasons", lastEnrichedAt: "last_enriched_at", crmLeadId: "crm_lead_id",
       siteScore: "site_score", digitalScore: "digital_score", automationScore: "automation_score", recommendedService: "recommended_service",
       userRatingCount: "user_rating_count", businessStatus: "business_status", projectId: "project_id",
-      approachMessage: "approach_message", approachNote: "approach_note", contactedAt: "contacted_at"
+      approachMessage: "approach_message", approachNote: "approach_note", contactedAt: "contacted_at",
+      cnaeCode: "cnae_code", foundedAt: "founded_at", phoneQuality: "phone_quality", legalName: "legal_name",
+      listId: "list_id", listName: "list_name"
     };
     for (const [from, to] of Object.entries(mappings)) {
       if (Object.prototype.hasOwnProperty.call(copy, from)) { copy[to] = copy[from]; delete copy[from]; }
@@ -244,7 +271,8 @@
     // pela interface, mas eles não devem virar colunas acidentais no banco.
     const allowed = {
       leads:['id','organization_id','company','contact','phone','email','service','source','stage','score','value','last_contact','next_action','notes','created_at'],
-      prospects:['id','organization_id','source','source_id','name','category','address','phone','whatsapp','email','website','instagram','facebook','latitude','longitude','distance_km','map_url','google_url','rating','user_rating_count','business_status','score','score_band','score_reasons','site_score','digital_score','automation_score','recommended_service','approach_message','approach_note','contacted_at','crm_lead_id','last_enriched_at','created_at'],
+      prospects:['id','organization_id','source','source_id','name','category','address','phone','whatsapp','email','website','instagram','facebook','latitude','longitude','distance_km','map_url','google_url','rating','user_rating_count','business_status','score','score_band','score_reasons','site_score','digital_score','automation_score','recommended_service','approach_message','approach_note','contacted_at','crm_lead_id','last_enriched_at','created_at','cnpj','cnae','cnae_code','founded_at','phone_quality','legal_name','city','state','list_id','list_name'],
+      prospectLists:['id','organization_id','name','source','filters','total','created_at'],
       conversations:['id','organization_id','lead_id','name','company','phone','status','unread','last_at','summary','messages','created_at'],
       campaigns:['id','organization_id','name','status','audience','message','total','sent','replies','created_at'],
       projects:['id','organization_id','client','name','status','progress','due','value','description','created_at'],
@@ -284,6 +312,12 @@
     if (row.contacted_at && !copy.contactedAt) copy.contactedAt = row.contacted_at;
     if (row.last_enriched_at && !row.lastEnrichedAt) copy.lastEnrichedAt = row.last_enriched_at;
     if (row.crm_lead_id && !row.crmLeadId) copy.crmLeadId = row.crm_lead_id;
+    if (row.cnae_code && !copy.cnaeCode) copy.cnaeCode = row.cnae_code;
+    if (row.founded_at && !copy.foundedAt) copy.foundedAt = row.founded_at;
+    if (row.phone_quality && !copy.phoneQuality) copy.phoneQuality = row.phone_quality;
+    if (row.legal_name && !copy.legalName) copy.legalName = row.legal_name;
+    if (row.list_id && !copy.listId) copy.listId = row.list_id;
+    if (row.list_name && !copy.listName) copy.listName = row.list_name;
     return copy;
   }
 
@@ -494,13 +528,29 @@
   }
 
 
+  const PROSPECT_MODES = [
+    ['places', 'Google Maps', 'map', 'Empresas com perfil no Google, com nota e avaliações.'],
+    ['cnae', 'CNAE / Receita', 'database', 'Empresas do cadastro da Receita, filtradas por CNAE, estado e abertura.']
+  ];
+
   function prospectingPage() {
+    const mode = state.prospecting.mode === 'cnae' ? 'cnae' : 'places';
+    return `<div class="prospecting-layout">
+      <div class="prospect-mode-switch" role="tablist" aria-label="Origem da busca">
+        ${PROSPECT_MODES.map(([id, label, ic, hint]) => `<button type="button" class="prospect-mode ${mode===id?'active':''}" data-prospect-mode="${id}" role="tab" aria-selected="${mode===id?'true':'false'}" title="${escapeHtml(hint)}">${icon(ic,15)} <span>${label}</span></button>`).join('')}
+      </div>
+      ${mode === 'cnae' ? extractorSection() : placesSection()}
+      ${prospectBridge(visibleProspects())}
+    </div>`;
+  }
+
+  function placesSection() {
     const p = state.prospecting;
     const all = p.results || [];
     const results = visibleProspects();
     const high = all.filter(x => Number(x.score||0) >= 75).length;
     const contactable = all.filter(x => whatsappDigits(x)).length;
-    return `<div class="prospecting-layout">
+    return `
       <section class="card prospect-search-panel">
         <div class="card-head"><div><h3 class="card-title">Caça-cliente Achilles</h3><p class="card-subtitle">Busque empresas locais, priorize oportunidades e prepare abordagens sem sair do Command.</p></div><span class="tag gold">Google Places</span></div>
         <form id="prospect-search-form" class="prospect-form">
@@ -521,9 +571,615 @@
         <section class="prospect-list">${results.map(prospectCard).join('')}</section>
         ${p.view==='list'?'':`<aside class="card prospect-map-wrap"><div id="prospect-map" class="prospect-map"></div><div class="prospect-map-note">Mapa de apoio: OpenStreetMap · dados comerciais: Google Places</div></aside>`}
       </div>` : `<div class="empty-state card">${icon('filter',34)}<h3>Nenhuma empresa passa nos filtros atuais</h3><p>A busca trouxe ${all.length} ${all.length===1?'empresa':'empresas'}, mas os filtros de contato e encaixe deixaram a lista vazia. Remova um filtro para voltar a ver os resultados.</p><button class="btn btn-secondary btn-sm" data-action="clear-prospect-filters" style="margin-top:16px">${icon('close',13)} Limpar filtros</button></div>`}`
-      : (!p.loading && p.query ? `<div class="empty-state card">${icon('target',34)}<h3>Nenhum resultado nessa busca</h3><p>Tente aumentar o raio ou usar um segmento mais amplo, como “clínicas” em vez de uma especialidade muito específica.</p></div>` : `<div class="empty-state card">${icon('target',34)}<h3>Comece por um segmento e uma cidade</h3><p>Exemplo: “clínicas” em “Uberaba”. Os resultados já chegam com contato disponível, score e atalhos de abordagem.</p></div>`)}
-      ${prospectBridge(results)}
+      : (!p.loading && p.query ? `<div class="empty-state card">${icon('target',34)}<h3>Nenhum resultado nessa busca</h3><p>Tente aumentar o raio ou usar um segmento mais amplo, como “clínicas” em vez de uma especialidade muito específica.</p></div>` : `<div class="empty-state card">${icon('target',34)}<h3>Comece por um segmento e uma cidade</h3><p>Exemplo: “clínicas” em “Uberaba”. Os resultados já chegam com contato disponível, score e atalhos de abordagem.</p></div>`)}`;
+  }
+
+
+  /* ==========================================================================
+     Extrator por CNAE
+
+     A busca do Google Maps encontra quem tem perfil público; o extrator
+     encontra quem existe no cadastro da Receita. São recortes diferentes do
+     mesmo mercado, então as duas convivem na mesma aba.
+
+     O fluxo é deliberadamente em duas etapas: extrair -> revisar -> nomear ->
+     importar. Nada entra na captação sem você confirmar, e importar não
+     dispara mensagem nenhuma.
+     ========================================================================== */
+
+  const UFS = [
+    ['AC','Acre'],['AL','Alagoas'],['AP','Amapá'],['AM','Amazonas'],['BA','Bahia'],['CE','Ceará'],
+    ['DF','Distrito Federal'],['ES','Espírito Santo'],['GO','Goiás'],['MA','Maranhão'],['MT','Mato Grosso'],
+    ['MS','Mato Grosso do Sul'],['MG','Minas Gerais'],['PA','Pará'],['PB','Paraíba'],['PR','Paraná'],
+    ['PE','Pernambuco'],['PI','Piauí'],['RJ','Rio de Janeiro'],['RN','Rio Grande do Norte'],
+    ['RS','Rio Grande do Sul'],['RO','Rondônia'],['RR','Roraima'],['SC','Santa Catarina'],
+    ['SP','São Paulo'],['SE','Sergipe'],['TO','Tocantins']
+  ];
+
+  const PHONE_QUALITY = {
+    mobile:   { label: 'Celular · candidato a WhatsApp', tag: 'whatsapp' },
+    landline: { label: 'Possível fixo', tag: 'warning' },
+    partial:  { label: 'Telefone incompleto', tag: 'warning' },
+    none:     { label: 'Sem telefone', tag: 'danger' }
+  };
+
+  const fold = v => String(v||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+
+  /* --- catálogo de CNAEs ---------------------------------------------------
+     assets/cnae.json tem as 1.332 subclasses da CNAE 2.3 do IBGE, geradas por
+     tools/gerar-cnae.mjs. É a base inteira, não uma lista de nichos: você
+     digita "pet", "oficina" ou "clínica" e as sugestões saem daí. */
+  let cnaeCatalog = null;
+  let cnaeCatalogPromise = null;
+
+  function loadCnaeCatalog() {
+    if (cnaeCatalog) return Promise.resolve(cnaeCatalog);
+    if (!cnaeCatalogPromise) {
+      cnaeCatalogPromise = fetch('/assets/cnae.json')
+        .then(r => r.ok ? r.json() : Promise.reject(new Error('catálogo indisponível')))
+        .then(d => { cnaeCatalog = d.subclasses || []; return cnaeCatalog; })
+        .catch(() => { cnaeCatalogPromise = null; return []; });
+    }
+    return cnaeCatalogPromise;
+  }
+
+  /* A descrição oficial é jurídica: "clínica" aparece em 2 das 1.332
+     subclasses e "pet shop" em nenhuma. Por isso a busca olha três coisas —
+     o código, a descrição e os apelidos populares gravados no catálogo — e
+     ainda aceita termos soltos ("oficina moto"), exigindo que todos apareçam
+     em algum desses campos. */
+  function searchCnae(term) {
+    const q = fold(term);
+    if (!cnaeCatalog || q.length < 2) return [];
+    const digits = q.replace(/\D/g, '');
+    const byCode = digits.length >= 2 && digits === q.replace(/\s/g, '');
+    const tokens = q.split(/\s+/).filter(Boolean);
+    const chosen = new Set(state.extractor.cnaes.map(c => c.id));
+    const scored = [];
+
+    for (const row of cnaeCatalog) {
+      if (chosen.has(row.id)) continue;
+      if (byCode && row.id.startsWith(digits)) { scored.push([0, row]); continue; }
+
+      const d = fold(row.d);
+      const alias = fold(row.a || '');
+      const haystack = `${d} ${fold(row.s)} ${alias}`;
+
+      if (alias && (alias === q || alias.split(' ').includes(q) || alias.includes(q))) scored.push([1, row]);
+      else if (d.startsWith(q)) scored.push([2, row]);
+      else if (d.includes(q)) scored.push([3, row]);
+      else if (tokens.length > 1 && tokens.every(t => haystack.includes(t))) scored.push([4, row]);
+      else if (fold(row.s).includes(q)) scored.push([5, row]);
+    }
+
+    return scored
+      .sort((a, b) => a[0] - b[0] || a[1].d.localeCompare(b[1].d, 'pt-BR'))
+      .slice(0, 40)
+      .map(x => x[1]);
+  }
+
+  /* --- municípios ----------------------------------------------------------
+     Sugestão vem do IBGE, que permite chamada direta do navegador. Se o IBGE
+     não responder, o campo continua aceitando texto livre — quem resolve o
+     nome para código é a Function, que consulta o IBGE pelo servidor. */
+  const municipalityCache = new Map();
+
+  async function municipalitiesOf(uf) {
+    if (municipalityCache.has(uf)) return municipalityCache.get(uf);
+    try {
+      const res = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${encodeURIComponent(uf)}/municipios`);
+      const data = await res.json();
+      const list = Array.isArray(data) ? data.map(m => String(m.nome)) : [];
+      if (list.length) municipalityCache.set(uf, list);
+      return list;
+    } catch { return []; }
+  }
+
+  async function searchCities(term) {
+    const q = fold(term);
+    if (q.length < 2) return [];
+    const chosen = new Set(state.extractor.cities.map(fold));
+    const out = [];
+    for (const uf of state.extractor.states) {
+      for (const name of await municipalitiesOf(uf)) {
+        if (chosen.has(fold(name))) continue;
+        if (fold(name).startsWith(q)) out.push({ name, uf, rank: 0 });
+        else if (fold(name).includes(q)) out.push({ name, uf, rank: 1 });
+      }
+    }
+    return out.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name, 'pt-BR')).slice(0, 25);
+  }
+
+  /* --- telas ---------------------------------------------------------------- */
+
+  function extractorSection() {
+    const x = state.extractor;
+    const selected = x.results.filter(r => x.selected.includes(r.id));
+    const withPhone = selected.filter(r => r.phoneQuality !== 'none').length;
+    return `
+      <section class="card prospect-search-panel extractor-panel">
+        <div class="card-head"><div><h3 class="card-title">Extrator por CNAE</h3><p class="card-subtitle">Monte listas a partir do cadastro público da Receita Federal. A busca só mostra a prévia — nada é enviado.</p></div><span class="tag gold">Receita Federal</span></div>
+
+        <div class="extractor-form">
+          <div class="form-group span-2">
+            <label class="label" for="cnae-term">CNAE ou atividade</label>
+            <div class="chip-field">
+              <div class="chip-list" id="cnae-chips">${cnaeChips()}</div>
+              <input class="input" id="cnae-term" autocomplete="off" placeholder="Digite clínica, oficina, pet shop, restaurante ou o código" />
+              <div class="suggest-box" id="cnae-suggestions" hidden></div>
+            </div>
+            <small class="field-hint">Marque quantos quiser. Busca a base completa da CNAE 2.3 do IBGE.</small>
+          </div>
+
+          <div class="form-group">
+            <label class="label" for="uf-term">Estados</label>
+            <div class="chip-field">
+              <div class="chip-list" id="uf-chips">${ufChips()}</div>
+              <input class="input" id="uf-term" autocomplete="off" placeholder="Sigla ou nome" />
+              <div class="suggest-box" id="uf-suggestions" hidden></div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="label" for="city-term">Cidades <span class="text-muted">(opcional)</span></label>
+            <div class="chip-field">
+              <div class="chip-list" id="city-chips">${cityChips()}</div>
+              <input class="input" id="city-term" autocomplete="off" placeholder="${x.states.length ? 'Refine por cidade' : 'Escolha um estado antes'}" ${x.states.length?'':'disabled'} />
+              <div class="suggest-box" id="city-suggestions" hidden></div>
+            </div>
+            <small class="field-hint">Sem cidade, a busca cobre o estado inteiro.</small>
+          </div>
+
+          <div class="form-group"><label class="label" for="founded-from">Aberta a partir de</label><input class="input" type="date" id="founded-from" value="${escapeHtml(x.foundedFrom)}" /></div>
+          <div class="form-group"><label class="label" for="founded-to">Aberta até</label><input class="input" type="date" id="founded-to" value="${escapeHtml(x.foundedTo)}" /></div>
+          <div class="form-group small"><label class="label" for="extractor-limit">Limite</label><select class="select" id="extractor-limit">${[50,100,200,300,500].map(v=>`<option value="${v}" ${Number(x.limit)===v?'selected':''}>${v}</option>`).join('')}</select></div>
+        </div>
+
+        <div class="extractor-toggles">
+          ${extractorToggle('onlyActive','Somente empresas ativas')}
+          ${extractorToggle('onlyWithPhone','Somente com telefone')}
+          ${extractorToggle('onlyMobile','Somente celular (candidato a WhatsApp)')}
+          ${extractorToggle('includeSide','Incluir CNAE secundário')}
+        </div>
+
+        <div class="extractor-actions">
+          <button class="btn btn-primary" id="extractor-run" ${x.loading||!x.cnaes.length||!x.states.length?'disabled':''}>${x.loading?icon('refresh'):icon('search')} ${x.loading?'Extraindo...':'Buscar empresas'}</button>
+          ${x.results.length?`<button class="btn btn-ghost btn-sm" data-action="extractor-reset">${icon('close',13)} Limpar prévia</button>`:''}
+        </div>
+        <div class="prospect-help">O telefone vem do cadastro da Receita e é <strong>candidato</strong> a WhatsApp — a Receita não informa se o número tem conta ativa. Confirme antes de tratar como contato certo.</div>
+      </section>
+
+      ${x.loading ? `<div class="card prospect-loading"><span class="spinner"></span><strong>Consultando o cadastro de CNPJ...</strong><span>Filtrando por CNAE, estado e período de abertura.</span></div>` : ''}
+
+      ${x.results.length ? `
+        <div class="grid grid-3 prospect-metrics">
+          ${metric('database','Na prévia',x.results.length,x.available>x.results.length?`de ${x.available.toLocaleString('pt-BR')} disponíveis`:'Resultado completo','Empresas extraídas')}
+          ${metric('check','Selecionadas',selected.length,`${withPhone} com telefone`,'Entram na lista')}
+          ${metric('phone','Candidatos a WhatsApp',x.results.filter(r=>r.phoneQuality==='mobile').length,'Celular no cadastro','Abordagem direta possível')}
+        </div>
+        ${extractorPreview()}
+        ${extractorImportBar(selected, withPhone)}
+      ` : (x.searched && !x.loading
+        ? `<div class="empty-state card">${icon('filter',34)}<h3>Nenhuma empresa com esses filtros</h3><p>Tente remover a cidade para buscar o estado inteiro, ampliar o período de abertura ou desmarcar “somente celular”.</p></div>`
+        : (!x.loading ? `<div class="empty-state card">${icon('database',34)}<h3>Escolha um CNAE e um estado</h3><p>Exemplo: “Atividade médica ambulatorial” em MG, abertas nos últimos 3 anos e com telefone. A prévia aparece aqui para você revisar antes de importar.</p></div>` : ''))}
+
+      ${extractorLists()}`;
+  }
+
+  function extractorToggle(key, label) {
+    const on = !!state.extractor[key];
+    return `<label class="extractor-toggle"><button type="button" class="switch ${on?'on':''}" data-extractor-toggle="${key}" role="switch" aria-checked="${on?'true':'false'}" aria-label="${escapeHtml(label)}"></button><span>${escapeHtml(label)}</span></label>`;
+  }
+
+  function cnaeChips() {
+    return state.extractor.cnaes.map(c =>
+      `<span class="chip" title="${escapeHtml(c.d)}">${escapeHtml(c.id)} · ${escapeHtml(c.d)}<button type="button" data-chip-remove="cnae" data-chip-value="${escapeHtml(c.id)}" aria-label="Remover ${escapeHtml(c.d)}">${icon('close',11)}</button></span>`).join('');
+  }
+
+  function ufChips() {
+    return state.extractor.states.map(uf =>
+      `<span class="chip">${escapeHtml(uf)}<button type="button" data-chip-remove="uf" data-chip-value="${escapeHtml(uf)}" aria-label="Remover ${escapeHtml(uf)}">${icon('close',11)}</button></span>`).join('');
+  }
+
+  function cityChips() {
+    return state.extractor.cities.map(city =>
+      `<span class="chip">${escapeHtml(city)}<button type="button" data-chip-remove="city" data-chip-value="${escapeHtml(city)}" aria-label="Remover ${escapeHtml(city)}">${icon('close',11)}</button></span>`).join('');
+  }
+
+  /* Colunas da prévia: só o que ajuda a decidir se vale abordar. CNPJ, score
+     e qualidade do telefone ficam visíveis; id interno e payload, não. */
+  function extractorPreview() {
+    const x = state.extractor;
+    const all = x.results.length && x.selected.length === x.results.length;
+    return `<div class="card extractor-preview">
+      <div class="toolbar"><div class="toolbar-left"><strong>Prévia da extração</strong><span class="text-muted">Revise e desmarque quem não faz sentido antes de importar.</span></div><div class="toolbar-right"><button class="btn btn-ghost btn-sm" data-action="extractor-select-phone">${icon('phone',13)} Só com celular</button><button class="btn btn-secondary btn-sm" data-action="extractor-export">${icon('download',13)} CSV</button></div></div>
+      <div class="table-wrap">
+        <table class="table extractor-table">
+          <thead><tr>
+            <th class="col-check"><input type="checkbox" id="extractor-select-all" ${all?'checked':''} aria-label="Selecionar todas" /></th>
+            <th>Empresa</th><th class="hide-mobile">CNPJ</th><th>Cidade</th><th class="hide-mobile">CNAE</th><th>Telefone</th><th class="hide-mobile">Abertura</th><th>Score</th>
+          </tr></thead>
+          <tbody>${x.results.map(extractorRow).join('')}</tbody>
+        </table>
+      </div>
     </div>`;
+  }
+
+  function extractorRow(r) {
+    const checked = state.extractor.selected.includes(r.id);
+    const quality = PHONE_QUALITY[r.phoneQuality] || PHONE_QUALITY.none;
+    const duplicate = state.data.prospects.some(p => p.cnpj && p.cnpj === r.cnpj)
+      || state.data.leads.some(l => String(l.company||'').toLowerCase() === String(r.name||'').toLowerCase());
+    return `<tr class="${checked?'row-selected':''}">
+      <td class="col-check"><input type="checkbox" data-extractor-pick="${escapeHtml(r.id)}" ${checked?'checked':''} aria-label="Selecionar ${escapeHtml(r.name)}" /></td>
+      <td><div class="cell-strong">${escapeHtml(r.name)}</div>${r.legalName && r.legalName !== r.name ? `<div class="cell-sub">${escapeHtml(r.legalName)}</div>` : ''}${duplicate?`<span class="tag warning">Já está no Achilles</span>`:''}</td>
+      <td class="hide-mobile mono">${escapeHtml(formatCnpj(r.cnpj))}</td>
+      <td>${escapeHtml(r.city)}${r.state?` · ${escapeHtml(r.state)}`:''}</td>
+      <td class="hide-mobile"><div class="cell-sub">${escapeHtml(r.cnaeCode)}</div>${escapeHtml(r.cnae)}</td>
+      <td>${r.phone?`<div class="mono">${escapeHtml(formatPhone(r.phone))}</div>`:''}<span class="tag ${quality.tag}">${escapeHtml(quality.label)}</span></td>
+      <td class="hide-mobile">${r.foundedAt?escapeHtml(shortDate(r.foundedAt)):'—'}</td>
+      <td><strong>${Number(r.score||0)}</strong></td>
+    </tr>`;
+  }
+
+  function extractorImportBar(selected, withPhone) {
+    const x = state.extractor;
+    const ready = withPhone > 0;
+    return `<div class="card extractor-import">
+      <div class="form-group"><label class="label" for="extractor-list-name">Nome da lista</label><input class="input" id="extractor-list-name" value="${escapeHtml(x.listName)}" placeholder="${escapeHtml(suggestedListName())}" maxlength="80" /></div>
+      <div class="extractor-import-info">
+        <strong>${selected.length} ${selected.length===1?'empresa selecionada':'empresas selecionadas'}</strong>
+        <span class="text-muted">${withPhone} com telefone. Só essas entram na captação — importar não envia mensagem nenhuma.</span>
+      </div>
+      <button class="btn btn-primary" data-action="extractor-import" ${ready?'':'disabled'} title="${ready?'':'Selecione pelo menos uma empresa com telefone'}">${icon('upload')} Importar para a captação</button>
+    </div>`;
+  }
+
+  function extractorLists() {
+    const lists = state.data.prospectLists || [];
+    if (!lists.length) return '';
+    return `<section class="card card-pad extractor-lists">
+      <div class="card-head"><div><h3 class="card-title">Listas importadas</h3><p class="card-subtitle">Cada importação vira uma lista. Abrir carrega a lista na captação, com abordagem e WhatsApp.</p></div></div>
+      ${lists.map(list => {
+        const items = state.data.prospects.filter(p => p.listId === list.id);
+        const contacted = items.filter(p => p.contactedAt).length;
+        const inCrm = items.filter(p => p.crmLeadId).length;
+        return `<div class="list-row">
+          <div class="list-row-main"><strong>${escapeHtml(list.name)}</strong><span class="text-muted">${escapeHtml(list.source || 'Extrator por CNAE')} · ${shortDate(list.createdAt)}</span></div>
+          <div class="list-row-stats"><span>${items.length} ${items.length===1?'contato':'contatos'}</span><span>${contacted} abordados</span><span>${inCrm} no CRM</span></div>
+          <div class="list-row-actions">
+            <button class="btn btn-secondary btn-sm" data-action="open-list" data-list="${escapeHtml(list.id)}">${icon('target',13)} Abrir na captação</button>
+            <button class="btn btn-ghost btn-sm" data-action="delete-list" data-list="${escapeHtml(list.id)}">${icon('trash',13)} Excluir</button>
+          </div>
+        </div>`;
+      }).join('')}
+    </section>`;
+  }
+
+  function formatCnpj(v = '') {
+    const d = String(v).replace(/\D/g, '');
+    return d.length === 14 ? `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8,12)}-${d.slice(12)}` : v;
+  }
+
+  function formatPhone(v = '') {
+    const d = String(v).replace(/\D/g, '').replace(/^55/, '');
+    if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+    if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+    return v;
+  }
+
+  function suggestedListName() {
+    const x = state.extractor;
+    const what = x.cnaes[0]?.d || 'Empresas';
+    const where = x.cities[0] || x.states.join('/') || 'Brasil';
+    return `${what} · ${where} · ${todayISO()}`;
+  }
+
+  /* --- busca ---------------------------------------------------------------- */
+
+  async function runExtractor() {
+    const x = state.extractor;
+    if (!x.cnaes.length || !x.states.length) { toast('Faltam filtros', 'Escolha pelo menos um CNAE e um estado.'); return; }
+    x.foundedFrom = document.getElementById('founded-from')?.value || '';
+    x.foundedTo = document.getElementById('founded-to')?.value || '';
+    x.limit = Number(document.getElementById('extractor-limit')?.value || 100);
+    x.loading = true; x.searched = true;
+    renderCurrentPage();
+    try {
+      const response = await fetch(CFG.cnaeSearchUrl || '/.netlify/functions/cnae-search', {
+        method: 'POST',
+        headers: await internalApiHeaders(),
+        body: JSON.stringify({
+          cnaes: x.cnaes.map(c => c.id),
+          states: x.states,
+          cities: x.cities,
+          onlyActive: x.onlyActive,
+          onlyWithPhone: x.onlyWithPhone,
+          onlyMobile: x.onlyMobile,
+          includeSide: x.includeSide,
+          foundedFrom: x.foundedFrom,
+          foundedTo: x.foundedTo,
+          limit: x.limit
+        })
+      });
+      const raw = await response.text();
+      let data = {};
+      try { data = raw ? JSON.parse(raw) : {}; }
+      catch { throw new Error('A extração não retornou JSON. Confirme se as Netlify Functions estão no deploy mais recente.'); }
+      if (!response.ok) throw new Error(data.error || 'Falha ao extrair empresas');
+      x.results = data.results || [];
+      x.available = Number(data.available || x.results.length);
+      // Pré-seleciona quem dá para abordar hoje; o resto você marca à mão.
+      x.selected = x.results.filter(r => r.phoneQuality === 'mobile').map(r => r.id);
+      logActivity('Extração por CNAE', `${x.cnaes.map(c=>c.d).join(', ')} em ${x.cities.join(', ') || x.states.join(', ')}: ${x.results.length} empresas na prévia.`);
+      saveData();
+    } catch (error) {
+      x.results = []; x.selected = [];
+      toast('Extração indisponível', error.message);
+    } finally {
+      x.loading = false;
+      renderCurrentPage();
+    }
+  }
+
+  /* --- importação -----------------------------------------------------------
+     Importar cria a lista, grava os prospects e carrega tudo na captação.
+     O que não acontece aqui, de propósito: nenhum lead vai para o CRM e
+     nenhuma mensagem é enviada. Isso continua sendo decisão sua, empresa a
+     empresa, pelos botões do card. */
+  function importExtractorSelection() {
+    const x = state.extractor;
+    const chosen = x.results.filter(r => x.selected.includes(r.id) && r.phoneQuality !== 'none');
+    if (!chosen.length) { toast('Nada para importar', 'Selecione pelo menos uma empresa com telefone.'); return; }
+
+    const name = (document.getElementById('extractor-list-name')?.value || '').trim() || suggestedListName();
+    const list = {
+      id: uid('list'),
+      name,
+      source: 'Extrator por CNAE',
+      filters: {
+        cnaes: x.cnaes.map(c => c.id), states: x.states, cities: x.cities,
+        onlyActive: x.onlyActive, onlyWithPhone: x.onlyWithPhone, onlyMobile: x.onlyMobile,
+        includeSide: x.includeSide, foundedFrom: x.foundedFrom, foundedTo: x.foundedTo
+      },
+      total: chosen.length,
+      createdAt: todayISO()
+    };
+
+    if (!Array.isArray(state.data.prospectLists)) state.data.prospectLists = [];
+    state.data.prospectLists.unshift(list);
+
+    let added = 0, skipped = 0;
+    const imported = [];
+    for (const r of chosen) {
+      // Dedup por CNPJ: reimportar a mesma busca não pode duplicar o contato.
+      if (state.data.prospects.some(p => p.cnpj && p.cnpj === r.cnpj)) { skipped++; continue; }
+      imported.push(upsertProspect({ ...r, listId: list.id, listName: list.name, createdAt: todayISO() }));
+      added++;
+    }
+
+    list.total = added;
+    syncRecord('prospectLists', list);
+
+    state.prospecting.mode = 'places';
+    state.prospecting.results = imported.length ? imported : state.data.prospects.filter(p => p.listId === list.id);
+    state.prospecting.origin = null;
+    state.prospecting.view = 'list'; // extrator não traz coordenadas: mapa vazio não ajuda
+    state.prospecting.query = x.cnaes.map(c => c.d).join(', ');
+    state.prospecting.city = x.cities.join(', ') || x.states.join(', ');
+    state.prospecting.state = x.states[0] || '';
+    state.prospecting.filters = { contact: [], fit: [] };
+    x.listName = '';
+
+    logActivity('Lista importada', `${name}: ${added} ${added===1?'contato':'contatos'}${skipped?`, ${skipped} já existiam`:''}.`);
+    saveData();
+    toast('Lista importada', `${name} com ${added} ${added===1?'contato':'contatos'}${skipped?` (${skipped} já estavam no Achilles)`:''}. Nenhuma mensagem foi enviada.`);
+    renderCurrentPage();
+  }
+
+  function openProspectList(listId) {
+    const list = (state.data.prospectLists || []).find(l => l.id === listId);
+    if (!list) return;
+    const items = state.data.prospects.filter(p => p.listId === listId);
+    if (!items.length) { toast('Lista vazia', `${list.name} não tem mais contatos.`); return; }
+    state.prospecting.mode = 'places';
+    state.prospecting.results = items;
+    state.prospecting.origin = null;
+    state.prospecting.view = 'list';
+    state.prospecting.query = list.name;
+    state.prospecting.city = '';
+    state.prospecting.filters = { contact: [], fit: [] };
+    renderCurrentPage();
+  }
+
+  function deleteProspectList(listId) {
+    const list = (state.data.prospectLists || []).find(l => l.id === listId);
+    if (!list) return;
+    const items = state.data.prospects.filter(p => p.listId === listId);
+    const kept = items.filter(p => p.crmLeadId).length;
+    const message = `Excluir a lista "${list.name}"?\n\n${items.length} ${items.length===1?'contato sai':'contatos saem'} da captação.` +
+      (kept ? `\n${kept} ${kept===1?'já virou lead e continua':'já viraram leads e continuam'} no CRM.` : '');
+    if (!window.confirm(message)) return;
+
+    state.data.prospects = state.data.prospects.filter(p => p.listId !== listId);
+    state.data.prospectLists = (state.data.prospectLists || []).filter(l => l.id !== listId);
+    state.prospecting.results = (state.prospecting.results || []).filter(p => p.listId !== listId);
+    items.forEach(p => removeRecord('prospects', p.id));
+    removeRecord('prospectLists', listId);
+    logActivity('Lista excluída', `${list.name} saiu da captação com ${items.length} ${items.length===1?'contato':'contatos'}.`);
+    saveData();
+    toast('Lista excluída', `${list.name} foi removida da captação.`);
+    renderCurrentPage();
+  }
+
+  function exportExtractorCsv() {
+    const x = state.extractor;
+    const rows = x.results.filter(r => x.selected.includes(r.id));
+    if (!rows.length) { toast('Nada selecionado', 'Marque as empresas que você quer exportar.'); return; }
+    const cols = ['name','legalName','cnpj','cnaeCode','cnae','city','state','address','phone','phoneQualityLabel','email','foundedAt','statusText','size','score','band','recommendedService'];
+    const esc = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
+    const csv = '﻿' + [cols.join(';'), ...rows.map(r => cols.map(c => esc(r[c])).join(';'))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `extrator-cnae-${todayISO()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  /* --- eventos --------------------------------------------------------------
+     Os campos com sugestão trocam só o pedaço que mudou, em vez de chamar
+     renderCurrentPage: redesenhar a página a cada tecla tirava o foco do
+     campo e atrapalhava a digitação. */
+  function bindExtractor() {
+    if (state.prospecting.mode !== 'cnae') return;
+    loadCnaeCatalog();
+
+    document.querySelectorAll('[data-extractor-toggle]').forEach(b => b.addEventListener('click', () => {
+      const key = b.dataset.extractorToggle;
+      state.extractor[key] = !state.extractor[key];
+      if (key === 'onlyMobile' && state.extractor.onlyMobile) state.extractor.onlyWithPhone = true;
+      if (key === 'onlyWithPhone' && !state.extractor.onlyWithPhone) state.extractor.onlyMobile = false;
+      renderCurrentPage();
+    }));
+
+    document.getElementById('extractor-run')?.addEventListener('click', runExtractor);
+    document.querySelector('[data-action="extractor-reset"]')?.addEventListener('click', () => {
+      Object.assign(state.extractor, { results: [], selected: [], available: 0, searched: false });
+      renderCurrentPage();
+    });
+    document.querySelector('[data-action="extractor-import"]')?.addEventListener('click', importExtractorSelection);
+    document.querySelector('[data-action="extractor-export"]')?.addEventListener('click', exportExtractorCsv);
+
+    document.querySelectorAll('[data-chip-remove]').forEach(b => b.addEventListener('click', () => {
+      const group = b.dataset.chipRemove;
+      const value = b.dataset.chipValue;
+      if (group === 'cnae') state.extractor.cnaes = state.extractor.cnaes.filter(c => c.id !== value);
+      if (group === 'uf') {
+        state.extractor.states = state.extractor.states.filter(s => s !== value);
+        // Cidade só existe dentro de um estado; sem o estado, o filtro mente.
+        state.extractor.cities = [];
+      }
+      if (group === 'city') state.extractor.cities = state.extractor.cities.filter(c => c !== value);
+      renderCurrentPage();
+    }));
+
+    bindSuggestField('cnae-term', 'cnae-suggestions', async term => {
+      await loadCnaeCatalog();
+      return searchCnae(term).map(row => ({
+        label: `${row.id} · ${row.d}`,
+        hint: row.s,
+        pick: () => { state.extractor.cnaes.push(row); }
+      }));
+    });
+
+    bindSuggestField('uf-term', 'uf-suggestions', async term => {
+      const q = fold(term);
+      return UFS
+        .filter(([sigla, nome]) => !state.extractor.states.includes(sigla) && (fold(sigla).startsWith(q) || fold(nome).includes(q)))
+        .slice(0, 12)
+        .map(([sigla, nome]) => ({
+          label: `${sigla} · ${nome}`,
+          pick: () => { state.extractor.states.push(sigla); }
+        }));
+    }, 1);
+
+    bindSuggestField('city-term', 'city-suggestions', async term => {
+      const cities = await searchCities(term);
+      return cities.map(c => ({
+        label: c.name,
+        hint: c.uf,
+        pick: () => { state.extractor.cities.push(c.name); }
+      }));
+    });
+
+    document.getElementById('extractor-select-all')?.addEventListener('change', e => {
+      state.extractor.selected = e.target.checked ? state.extractor.results.map(r => r.id) : [];
+      renderCurrentPage();
+    });
+    document.querySelector('[data-action="extractor-select-phone"]')?.addEventListener('click', () => {
+      state.extractor.selected = state.extractor.results.filter(r => r.phoneQuality === 'mobile').map(r => r.id);
+      renderCurrentPage();
+    });
+    document.querySelectorAll('[data-extractor-pick]').forEach(cb => cb.addEventListener('change', () => {
+      const id = cb.dataset.extractorPick;
+      const sel = state.extractor.selected;
+      const i = sel.indexOf(id);
+      if (cb.checked && i < 0) sel.push(id);
+      if (!cb.checked && i >= 0) sel.splice(i, 1);
+      cb.closest('tr')?.classList.toggle('row-selected', cb.checked);
+      updateExtractorCounts();
+    }));
+
+    document.getElementById('extractor-list-name')?.addEventListener('input', e => { state.extractor.listName = e.target.value; });
+  }
+
+  /* Atualiza só os números que dependem da seleção. Evita redesenhar a tabela
+     inteira — e perder a rolagem — a cada caixa marcada. */
+  function updateExtractorCounts() {
+    const x = state.extractor;
+    const selected = x.results.filter(r => x.selected.includes(r.id));
+    const withPhone = selected.filter(r => r.phoneQuality !== 'none').length;
+    const bar = document.querySelector('.extractor-import');
+    if (bar) {
+      const strong = bar.querySelector('.extractor-import-info strong');
+      const muted = bar.querySelector('.extractor-import-info .text-muted');
+      if (strong) strong.textContent = `${selected.length} ${selected.length===1?'empresa selecionada':'empresas selecionadas'}`;
+      if (muted) muted.textContent = `${withPhone} com telefone. Só essas entram na captação — importar não envia mensagem nenhuma.`;
+      const btn = bar.querySelector('[data-action="extractor-import"]');
+      if (btn) btn.disabled = withPhone === 0;
+    }
+    const counter = document.querySelectorAll('.prospect-metrics .metric-value')[1];
+    if (counter) counter.textContent = selected.length;
+    const all = document.getElementById('extractor-select-all');
+    if (all) all.checked = x.results.length > 0 && x.selected.length === x.results.length;
+  }
+
+  /* Campo de texto com sugestões. Ao escolher, a janela fecha e o campo
+     esvazia — marcar cinco CNAEs seguidos não deve exigir fechar a lista
+     à mão cinco vezes. */
+  function bindSuggestField(inputId, boxId, provider, minLength = 2) {
+    const input = document.getElementById(inputId);
+    const box = document.getElementById(boxId);
+    if (!input || !box) return;
+    let token = 0;
+
+    const close = () => { box.hidden = true; box.innerHTML = ''; };
+
+    const open = async () => {
+      const term = input.value.trim();
+      if (term.length < minLength) return close();
+      const mine = ++token;
+      const options = await provider(term);
+      if (mine !== token) return; // resposta antiga de uma digitação anterior
+      if (!options.length) {
+        box.innerHTML = `<div class="suggest-empty">Nada encontrado para “${escapeHtml(term)}”.</div>`;
+        box.hidden = false;
+        return;
+      }
+      box.innerHTML = options.map((o, i) =>
+        `<button type="button" class="suggest-item" data-suggest-index="${i}">${escapeHtml(o.label)}${o.hint?`<small>${escapeHtml(o.hint)}</small>`:''}</button>`).join('');
+      box.hidden = false;
+      box.querySelectorAll('[data-suggest-index]').forEach(btn => btn.addEventListener('mousedown', e => {
+        e.preventDefault(); // mousedown: o blur do input fecharia a caixa antes do click
+        options[Number(btn.dataset.suggestIndex)].pick();
+        input.value = '';
+        close();
+        renderCurrentPage();
+      }));
+    };
+
+    input.addEventListener('input', open);
+    input.addEventListener('focus', open);
+    input.addEventListener('blur', () => setTimeout(close, 120));
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { close(); input.blur(); }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        box.querySelector('[data-suggest-index]')?.dispatchEvent(new MouseEvent('mousedown'));
+      }
+    });
   }
 
   /* Ponte para a extensão Achilles Prospecta. Publica a lista visível como
@@ -573,6 +1229,9 @@
     const saved = p.crmLeadId || state.data.leads.some(l => String(l.company).toLowerCase() === String(p.name).toLowerCase());
     const rating = Number(p.rating || 0);
     const reviews = Number(p.userRatingCount || 0);
+    // Prospect vindo do extrator não passou por busca de site: o card não
+    // pode afirmar ausência do que ninguém procurou.
+    const siteKnown = !!p.website || !!p.lastEnrichedAt || !String(p.source||'').startsWith('Receita Federal');
     const serviceScores = [
       ['Site', Number(p.siteScore || 0)],
       ['Digital', Number(p.digitalScore || 0)],
@@ -580,12 +1239,12 @@
     ];
     return `<article class="card prospect-card" data-prospect-id="${p.id}">
       <div class="prospect-card-top"><div><div class="prospect-name">${escapeHtml(p.name)}</div><div class="prospect-category">${escapeHtml(p.category || 'Empresa local')}${p.distanceKm!=null?` · ${Number(p.distanceKm||0).toFixed(1)} km`:''}</div></div><div class="prospect-score"><strong>${p.score}</strong><span>Score</span></div></div>
-      <div class="prospect-address">${escapeHtml(p.address || 'Endereço não informado')}</div>
+      <div class="prospect-address">${escapeHtml(p.address || 'Endereço não informado')}${p.cnpj?` · CNPJ ${escapeHtml(formatCnpj(p.cnpj))}`:''}</div>
       <div class="prospect-signals">
         <span class="tag ${p.phone||p.whatsapp?'info':''}">${icon('phone',12)} ${escapeHtml(contact)}</span>
         ${wa?`<span class="tag whatsapp">${icon('message',12)} WhatsApp</span>`:''}
         ${p.contactedAt?`<span class="tag gold">${icon('check',12)} Abordado ${shortDate(p.contactedAt)}</span>`:''}
-        <span class="tag ${!p.website||p.siteUnreachable?'gold':''}">${p.siteUnreachable?'Site fora do ar':p.website?'Site encontrado':'Sem site identificado'}</span>
+        <span class="tag ${siteKnown&&(!p.website||p.siteUnreachable)?'gold':''}">${p.siteUnreachable?'Site fora do ar':p.website?'Site encontrado':siteKnown?'Sem site identificado':'Site não verificado'}</span>
         ${rating?`<span class="tag">★ ${rating.toFixed(1)} · ${reviews.toLocaleString('pt-BR')} avaliações</span>`:''}
         <span class="tag ${scoreClass}">${escapeHtml(p.band || p.scoreBand || 'Oportunidade')}</span>
       </div>
@@ -735,6 +1394,11 @@
      "não tem site" é fato observado; "score muito superior" é média. Site que
      não responde no enriquecimento conta como ausência de site. */
   function approachAngle(p={}) {
+    // No extrator por CNAE ninguém procurou o site: a Receita simplesmente não
+    // guarda esse campo. Dizer "não encontrei um site" nesse caso seria afirmar
+    // algo que não foi verificado, então o discurso fica no ângulo genérico
+    // até o enriquecimento conferir de verdade.
+    if (!p.website && !p.lastEnrichedAt && String(p.source||'').startsWith('Receita Federal')) return 'generic';
     if (!p.website || p.siteUnreachable) return 'site';
     const site=Number(p.siteScore||0), digital=Number(p.digitalScore||0), automation=Number(p.automationScore||0);
     if (automation >= digital + AUTOMATION_GAP && automation >= site + AUTOMATION_GAP) return 'automation';
@@ -1183,6 +1847,13 @@
   }
 
   function bindProspecting() {
+    document.querySelectorAll('[data-prospect-mode]').forEach(b=>b.addEventListener('click',()=>{
+      state.prospecting.mode=b.dataset.prospectMode;
+      renderCurrentPage();
+    }));
+    document.querySelectorAll('[data-action="open-list"]').forEach(b=>b.addEventListener('click',()=>openProspectList(b.dataset.list)));
+    document.querySelectorAll('[data-action="delete-list"]').forEach(b=>b.addEventListener('click',()=>deleteProspectList(b.dataset.list)));
+    bindExtractor();
     const form=document.getElementById('prospect-search-form');
     if(form) form.addEventListener('submit',e=>{e.preventDefault();searchProspects(form)});
     document.querySelectorAll('[data-action="enrich-prospect"]').forEach(b=>b.addEventListener('click',()=>enrichProspect(b.dataset.prospect)));
@@ -1193,7 +1864,7 @@
     document.querySelectorAll('[data-action="clear-prospect-filters"]').forEach(b=>b.addEventListener('click',()=>{state.prospecting.filters={contact:[],fit:[]};renderCurrentPage();}));
     document.querySelector('[data-action="export-prospects"]')?.addEventListener('click',exportProspectsCsv);
     document.querySelector('[data-action="toggle-prospect-view"]')?.addEventListener('click',()=>{state.prospecting.view=state.prospecting.view==='list'?'split':'list';renderCurrentPage()});
-    if(state.route==='prospecting' && visibleProspects().length && state.prospecting.view!=='list') setTimeout(renderProspectMap,30);
+    if(state.route==='prospecting' && state.prospecting.mode!=='cnae' && visibleProspects().length && state.prospecting.view!=='list') setTimeout(renderProspectMap,30);
   }
 
   function bindAssistant() {

@@ -5,6 +5,7 @@ window.ACHILLES_CONFIG = {
   supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVxaWxnamd6dGdzYmZwc3J1ZmVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU3MzQ3MjcsImV4cCI6MjEwMTMxMDcyN30.oXhBA1Pbk-VPmNthoQq-D3ld2heRutEuyNVGh-SqPWw",
   prospectingUrl: "/.netlify/functions/prospect-search",
   prospectEnrichUrl: "/.netlify/functions/prospect-enrich",
+  cnaeSearchUrl: "/.netlify/functions/cnae-search",
   leadIntakeUrl: "/.netlify/functions/lead-intake",
   aiProxyUrl: "/.netlify/functions/ai-proxy",
   whatsappSendUrl: "/.netlify/functions/whatsapp-send",
