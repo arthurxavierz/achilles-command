@@ -49,6 +49,7 @@ netlify/functions/prospect-search.mjs captação por Google Places
 netlify/functions/cnae-search.mjs     extrator por CNAE (base própria ou CNPJá)
 netlify/lib/telefone.mjs              leitura do telefone da Receita e do 9o digito
 tools/carregar-base-cnpj.mjs          baixa e carrega a base da Receita no Supabase
+tools/testar-*.mjs                    testes do extrator, da interface e do carregador
 assets/cnae.json                      base CNAE 2.3 do IBGE usada na busca
 tools/gerar-cnae.mjs                  regera a base a partir do IBGE
 netlify/functions/prospect-enrich.mjs enriquecimento do site público

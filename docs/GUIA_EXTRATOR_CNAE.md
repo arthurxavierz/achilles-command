@@ -213,9 +213,12 @@ node tools/testar-cnae-search.mjs
 
 # Interface completa. Precisa do jsdom uma vez: npm install jsdom
 node tools/testar-extrator-ui.mjs
+
+# Carregador. Precisa de 3 ZIPs da Receita numa pasta; o arquivo explica quais.
+node tools/testar-carregador.mjs C:/caminho/da/pasta
 ```
 
-São 111 verificações. O primeiro cobre os dois provedores, os filtros enviados ao banco e a leitura do telefone. O segundo percorre o caminho inteiro num DOM simulado e checa as três regras que não podem quebrar: importar não cria lead no CRM, não marca ninguém como abordado, e reimportar a mesma busca não duplica contato.
+São 132 verificações. O primeiro cobre os dois provedores, os filtros enviados ao banco e a leitura do telefone. O terceiro roda o carregador de verdade contra um Supabase simulado e confere o que seria gravado. O segundo percorre o caminho inteiro num DOM simulado e checa as três regras que não podem quebrar: importar não cria lead no CRM, não marca ninguém como abordado, e reimportar a mesma busca não duplica contato.
 
 Checklist manual, na primeira vez:
 
