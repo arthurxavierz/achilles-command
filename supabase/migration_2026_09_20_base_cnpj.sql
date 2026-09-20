@@ -127,6 +127,9 @@ create table if not exists public.cnpj_base_cargas (
   id bigserial primary key,
   competencia text not null,
   ufs text[] not null,
+  -- CNAEs carregados. Vazio significa "todos". A Function usa esta lista para
+  -- avisar quando você pedir algo que não está na base.
+  cnaes integer[] not null default '{}',
   somente_celular boolean not null default true,
   somente_ativas boolean not null default true,
   total_linhas bigint not null default 0,

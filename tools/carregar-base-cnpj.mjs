@@ -26,7 +26,8 @@
      --celular           só provável celular (padrão)
      --com-telefone      celular e fixo
      --todas-situacoes   inclui baixadas, suspensas e inaptas
-     --cnaes 8630503,... só estes CNAEs (corta MUITO o volume)
+     --cnaes 8630503,... só estes CNAEs
+     --todos-cnaes       carrega todos os CNAEs (triplica o volume)
      --arquivos 0,1,2    só estes arquivos da Receita
      --lote 1000         linhas por requisição ao Supabase
      --limpar-antigas    ao final, apaga as linhas de competências anteriores
@@ -50,13 +51,30 @@ import path from 'node:path';
 
 const AJUSTES = {
   competencia: '2026-09',
-  ufs: ['MG', 'SP', 'GO', 'DF', 'PR', 'RS', 'SC', 'RJ'],
+  // Começamos pela região da Achilles. Ampliar depois é rodar de novo com
+  // --ufs: o carregador faz upsert, então nada é duplicado nem apagado.
+  ufs: ['MG', 'GO', 'DF'],
   somenteCelular: true,
   somenteAtivas: true,
-  cnaes: [],          // vazio = todos
+  cnaes: [],            // vazio = usa a lista de negócio local (ver abaixo)
+  cnaesLocais: true,    // --todos-cnaes desliga
   arquivos: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
   lote: 1000
 };
+
+/* Os CNAEs que a Achilles realmente vende: os de negócio local, que são
+   exatamente as subclasses com apelido popular em assets/cnae.json. Cortar
+   por aqui tira agro, indústria e fabricação, que nunca seriam prospectados,
+   e reduz a base a um terço do tamanho.
+
+   Consequência: um CNAE fora desta lista não terá empresas na base. A
+   Function avisa quando isso acontece, em vez de devolver lista vazia sem
+   explicação. */
+function cnaesDeNegocioLocal() {
+  const caminho = new URL('../assets/cnae.json', import.meta.url);
+  const catalogo = JSON.parse(readFileSync(caminho, 'utf8'));
+  return catalogo.subclasses.filter(r => r.a).map(r => Number(r.id));
+}
 
 const BASE = 'https://arquivos.receitafederal.gov.br/public.php/webdav';
 const TOKEN_PUBLICO = 'YggdBLfdninEJX9'; // link público do repositório da Receita
@@ -74,10 +92,11 @@ function lerArgumentos(argv) {
     else if (a === '--celular') cfg.somenteCelular = true;
     else if (a === '--com-telefone') cfg.somenteCelular = false;
     else if (a === '--todas-situacoes') cfg.somenteAtivas = false;
+    else if (a === '--todos-cnaes') { cfg.cnaesLocais = false; cfg.cnaes = []; }
     else if (a === '--limpar-antigas') cfg.limparAntigas = true;
     else if (a === '--ufs') cfg.ufs = proximo().split(',').map(s => s.trim().toUpperCase()).filter(Boolean);
     else if (a === '--competencia') cfg.competencia = proximo().trim();
-    else if (a === '--cnaes') cfg.cnaes = proximo().split(',').map(s => Number(String(s).replace(/\D/g, ''))).filter(Boolean);
+    else if (a === '--cnaes') { cfg.cnaes = proximo().split(',').map(s => Number(String(s).replace(/\D/g, ''))).filter(Boolean); cfg.cnaesLocais = false; }
     else if (a === '--arquivos') cfg.arquivos = proximo().split(',').map(Number).filter(n => n >= 0 && n <= 9);
     else if (a === '--local') cfg.local = proximo();
     else if (a === '--lote') cfg.lote = Math.max(100, Math.min(5000, Number(proximo()) || 1000));
@@ -271,6 +290,7 @@ const supabaseUrl = gravando ? env('SUPABASE_URL') : '';
 const chave = gravando ? env('SUPABASE_SERVICE_ROLE_KEY') : '';
 
 const ufsAceitas = new Set(cfg.ufs);
+if (cfg.cnaesLocais && !cfg.cnaes.length) cfg.cnaes = cnaesDeNegocioLocal();
 const cnaesAceitos = cfg.cnaes.length ? new Set(cfg.cnaes) : null;
 
 console.log('');
@@ -278,7 +298,7 @@ console.log(`Competência .......... ${cfg.competencia}`);
 console.log(`Estados .............. ${cfg.ufs.join(', ')}`);
 console.log(`Telefone ............. ${cfg.somenteCelular ? 'somente provável celular' : 'provável celular ou fixo'}`);
 console.log(`Situação ............. ${cfg.somenteAtivas ? 'somente ativas' : 'todas'}`);
-console.log(`CNAEs ................ ${cnaesAceitos ? cfg.cnaes.join(', ') : 'todos'}`);
+console.log(`CNAEs ................ ${cnaesAceitos ? `${cfg.cnaes.length} selecionados${cfg.cnaesLocais ? ' (negócio local)' : ''}` : 'todos'}`);
 console.log(`Arquivos ............. ${cfg.arquivos.join(', ')}`);
 console.log(`Origem ............... ${cfg.local || 'download direto da Receita'}`);
 console.log(`Modo ................. ${gravando ? 'CARREGAR no Supabase' : 'apenas contar (nada é gravado)'}`);
@@ -429,6 +449,9 @@ if (gravando) {
   const registro = {
     competencia: cfg.competencia,
     ufs: cfg.ufs,
+    // A Function lê isto para avisar quando você pedir um CNAE ou um estado
+    // que não foi carregado, em vez de devolver "nenhum resultado".
+    cnaes: cfg.cnaes,
     somente_celular: cfg.somenteCelular,
     somente_ativas: cfg.somenteAtivas,
     total_linhas: aceitas,

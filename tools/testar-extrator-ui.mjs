@@ -54,16 +54,20 @@ const empresa = (i, quality) => ({
   category: 'Atividade médica ambulatorial', cnae: 'Atividade médica ambulatorial', cnaeCode: '8630503',
   address: 'Rua das Flores, 100 · Centro · Uberaba - MG', city: 'Uberaba', state: 'MG',
   phone: quality === 'none' ? '' : '+5534991234560',
-  whatsapp: quality === 'mobile' ? `553499123456${i}` : '',
+  whatsapp: quality === 'mobile_guess' ? `553499123456${i}` : '',
   phoneQuality: quality, phoneQualityLabel: quality,
   email: '', website: '', foundedAt: '2023-04-15', statusText: 'Ativa', size: 'ME',
   score: 70 + i, band: 'Alta', reasons: ['CNAE 8630503'], siteScore: 80, digitalScore: 78,
   automationScore: 76, recommendedService: 'Site', rating: 0, userRatingCount: 0
 });
 
+// 'mobile_guess' é o caso real: o cadastro da Receita tem 8 dígitos, então o
+// celular é sempre reconstruído. 'mobile' quase nunca acontece.
 const extractorResponse = {
   count: 4, available: 412,
-  results: [empresa(1, 'mobile'), empresa(2, 'mobile'), empresa(3, 'landline'), empresa(4, 'none')]
+  base: { competencia: '2026-09', ufs: ['MG', 'GO', 'DF'], total: 832029 },
+  avisos: [],
+  results: [empresa(1, 'mobile_guess'), empresa(2, 'mobile_guess'), empresa(3, 'landline'), empresa(4, 'none')]
 };
 window.L = undefined;
 window.structuredClone = v => JSON.parse(JSON.stringify(v)); // jsdom 30 nao expoe no contexto
@@ -178,11 +182,26 @@ check('prévia aparece', !!doc.querySelector('.extractor-preview'));
 check('todas as empresas listadas', doc.querySelectorAll('[data-extractor-pick]').length === 4,
   `${doc.querySelectorAll('[data-extractor-pick]').length} linhas`);
 check('total disponível é mostrado', app.textContent.includes('412'));
-check('só os celulares vêm pré-marcados',
+check('só os prováveis celulares vêm pré-marcados',
   [...doc.querySelectorAll('[data-extractor-pick]')].filter(c => c.checked).length === 2);
+check('a tela mostra o recorte carregado na base',
+  app.textContent.includes('MG, GO, DF') && app.textContent.includes('832.029'));
+check('a tela diz que o 9º dígito foi reconstruído',
+  app.textContent.includes('9º dígito reconstruído'));
+check('a tela não promete WhatsApp confirmado',
+  !/WhatsApp confirmado/i.test(app.textContent));
+check('o fixo é marcado como fixo', app.textContent.includes('Fixo · não abre WhatsApp'));
 check('CNPJ formatado na tabela', app.textContent.includes('11.222.333/0001-01'));
 check('botão importar liberado', !doc.querySelector('[data-action="extractor-import"]').disabled);
 check('aviso de que nada é enviado', app.textContent.includes('importar não envia mensagem nenhuma'));
+
+// aviso de estado fora da carga precisa aparecer para o usuário
+extractorResponse.avisos = ['SP não está na base carregada (hoje ela tem MG, GO, DF), então esses estados vieram vazios.'];
+doc.getElementById('extractor-run').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+await wait(120);
+check('aviso da base aparece na tela', !!doc.querySelector('.extractor-aviso'));
+check('aviso explica o motivo', app.textContent.includes('não está na base carregada'));
+extractorResponse.avisos = [];
 
 // desmarcar tudo trava a importação
 doc.getElementById('extractor-select-all').checked = true;

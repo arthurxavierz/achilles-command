@@ -162,6 +162,7 @@
        as empresas entram na lista de captação e ganham abordagem. */
     extractor: {
       cnaes: [], states: ["MG"], cities: [],
+      base: null, avisos: [],
       onlyActive: true, onlyWithPhone: true, onlyMobile: false, includeSide: false,
       foundedFrom: "", foundedTo: "", limit: 100,
       loading: false, results: [], selected: [], available: 0, searched: false,
@@ -596,12 +597,20 @@
     ['SP','São Paulo'],['SE','Sergipe'],['TO','Tocantins']
   ];
 
+  /* O cadastro da Receita guarda só 8 dígitos de telefone — o 9º dígito do
+     celular não existe na fonte, e as APIs pagas devolvem o mesmo número
+     truncado. Um número começando com 6 a 9 era celular na numeração antiga,
+     então dá para reconstruir; mas é inferência, e o rótulo diz isso. */
   const PHONE_QUALITY = {
-    mobile:   { label: 'Celular · candidato a WhatsApp', tag: 'whatsapp' },
-    landline: { label: 'Possível fixo', tag: 'warning' },
-    partial:  { label: 'Telefone incompleto', tag: 'warning' },
-    none:     { label: 'Sem telefone', tag: 'danger' }
+    mobile:       { label: 'Celular · candidato a WhatsApp', tag: 'whatsapp' },
+    mobile_guess: { label: 'Provável celular · 9º dígito reconstruído', tag: 'whatsapp' },
+    landline:     { label: 'Fixo · não abre WhatsApp', tag: 'warning' },
+    partial:      { label: 'Telefone incompleto', tag: 'warning' },
+    none:         { label: 'Sem telefone', tag: 'danger' }
   };
+
+  const ABORDAVEL = new Set(['mobile', 'mobile_guess']);
+  const podeAbordar = r => ABORDAVEL.has(r?.phoneQuality);
 
   const fold = v => String(v||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
 
@@ -738,7 +747,7 @@
         <div class="extractor-toggles">
           ${extractorToggle('onlyActive','Somente empresas ativas')}
           ${extractorToggle('onlyWithPhone','Somente com telefone')}
-          ${extractorToggle('onlyMobile','Somente celular (candidato a WhatsApp)')}
+          ${extractorToggle('onlyMobile','Somente prováveis celulares')}
           ${extractorToggle('includeSide','Incluir CNAE secundário')}
         </div>
 
@@ -746,8 +755,10 @@
           <button class="btn btn-primary" id="extractor-run" ${x.loading||!x.cnaes.length||!x.states.length?'disabled':''}>${x.loading?icon('refresh'):icon('search')} ${x.loading?'Extraindo...':'Buscar empresas'}</button>
           ${x.results.length?`<button class="btn btn-ghost btn-sm" data-action="extractor-reset">${icon('close',13)} Limpar prévia</button>`:''}
         </div>
-        <div class="prospect-help">O telefone vem do cadastro da Receita e é <strong>candidato</strong> a WhatsApp — a Receita não informa se o número tem conta ativa. Confirme antes de tratar como contato certo.</div>
+        <div class="prospect-help">O cadastro da Receita guarda o telefone com <strong>8 dígitos</strong>: o 9º dígito do celular não existe na fonte. Quando o número começa com 6 a 9, ele era celular na numeração antiga e o 9 é recolocado na frente — é uma <strong>inferência</strong>, não confirmação de que existe WhatsApp ali. Confirme antes de tratar como contato certo.</div>
       </section>
+
+      ${extractorBaseBar()}
 
       ${x.loading ? `<div class="card prospect-loading"><span class="spinner"></span><strong>Consultando o cadastro de CNPJ...</strong><span>Filtrando por CNAE, estado e período de abertura.</span></div>` : ''}
 
@@ -755,7 +766,7 @@
         <div class="grid grid-3 prospect-metrics">
           ${metric('database','Na prévia',x.results.length,x.available>x.results.length?`de ${x.available.toLocaleString('pt-BR')} disponíveis`:'Resultado completo','Empresas extraídas')}
           ${metric('check','Selecionadas',selected.length,`${withPhone} com telefone`,'Entram na lista')}
-          ${metric('phone','Candidatos a WhatsApp',x.results.filter(r=>r.phoneQuality==='mobile').length,'Celular no cadastro','Abordagem direta possível')}
+          ${metric('phone','Candidatos a WhatsApp',x.results.filter(podeAbordar).length,'Provável celular','Confirme antes de tratar como certo')}
         </div>
         ${extractorPreview()}
         ${extractorImportBar(selected, withPhone)}
@@ -764,6 +775,20 @@
         : (!x.loading ? `<div class="empty-state card">${icon('database',34)}<h3>Escolha um CNAE e um estado</h3><p>Exemplo: “Atividade médica ambulatorial” em MG, abertas nos últimos 3 anos e com telefone. A prévia aparece aqui para você revisar antes de importar.</p></div>` : ''))}
 
       ${extractorLists()}`;
+  }
+
+  /* A base própria cobre um recorte, não o Brasil inteiro. Dizer qual é o
+     recorte evita o pior mal-entendido possível aqui: achar que "nenhum
+     resultado" significa que não existe empresa, quando significa que aquele
+     estado ou CNAE não foi carregado. */
+  function extractorBaseBar() {
+    const x = state.extractor;
+    const avisos = (x.avisos || []).map(a => `<div class="extractor-aviso">${icon('filter',13)} ${escapeHtml(a)}</div>`).join('');
+    if (!x.base) return avisos;
+    const { competencia, ufs = [], total = 0 } = x.base;
+    return `<div class="extractor-base-bar">
+      <span>${icon('database',13)} Base própria · <strong>${escapeHtml((ufs || []).join(', ') || '—')}</strong> · ${Number(total).toLocaleString('pt-BR')} empresas · dados de ${escapeHtml(competencia || '—')}</span>
+    </div>${avisos}`;
   }
 
   function extractorToggle(key, label) {
@@ -909,8 +934,10 @@
       if (!response.ok) throw new Error(data.error || 'Falha ao extrair empresas');
       x.results = data.results || [];
       x.available = Number(data.available || x.results.length);
+      x.base = data.base || null;
+      x.avisos = Array.isArray(data.avisos) ? data.avisos : [];
       // Pré-seleciona quem dá para abordar hoje; o resto você marca à mão.
-      x.selected = x.results.filter(r => r.phoneQuality === 'mobile').map(r => r.id);
+      x.selected = x.results.filter(podeAbordar).map(r => r.id);
       logActivity('Extração por CNAE', `${x.cnaes.map(c=>c.d).join(', ')} em ${x.cities.join(', ') || x.states.join(', ')}: ${x.results.length} empresas na prévia.`);
       saveData();
     } catch (error) {
@@ -1099,7 +1126,7 @@
       renderCurrentPage();
     });
     document.querySelector('[data-action="extractor-select-phone"]')?.addEventListener('click', () => {
-      state.extractor.selected = state.extractor.results.filter(r => r.phoneQuality === 'mobile').map(r => r.id);
+      state.extractor.selected = state.extractor.results.filter(podeAbordar).map(r => r.id);
       renderCurrentPage();
     });
     document.querySelectorAll('[data-extractor-pick]').forEach(cb => cb.addEventListener('change', () => {

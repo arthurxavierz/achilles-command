@@ -12,9 +12,20 @@ A chave fica somente no Netlify como `GOOGLE_PLACES_API_KEY`.
 
 O sistema solicita apenas os campos necessários para a tela de prospecção, como nome, telefone publicado, site, endereço, nota e quantidade de avaliações. Consulte o guia de implantação antes de ativar a API e mantenha a atribuição `Google Maps` visível na interface quando dados do Places forem exibidos.
 
-## CNPJá (extrator por CNAE)
+## Receita Federal — dados abertos de CNPJ
 
-O extrator por CNAE consulta o cadastro público de CNPJ pela API do CNPJá, por meio da Netlify Function:
+O extrator por CNAE usa, por padrão, uma cópia própria do cadastro público de CNPJ, baixada do repositório oficial da Receita Federal e carregada no Supabase por `tools/carregar-base-cnpj.mjs`. São dados abertos, publicados mensalmente e catalogados no Portal Brasileiro de Dados Abertos.
+
+Duas características da fonte que a interface precisa respeitar:
+
+- **O telefone tem 8 dígitos.** O nono dígito dos celulares não está na base. Conferido no arquivo de setembro de 2026: 910.396 telefones de 8 dígitos e nenhum de 9. O sistema reconstrói o nono dígito quando o número começa com 6 a 9, que era a faixa de celular na numeração antiga, e apresenta o resultado como provável celular — nunca como WhatsApp confirmado.
+- **O nome fantasia vem preenchido em cerca de 30% dos estabelecimentos.** Por isso o carregador também lê os arquivos de Empresas, para obter a razão social.
+
+Os dados são públicos, mas o uso para contato comercial continua sujeito à LGPD e às regras da plataforma de mensagens. Telefone em base pública é ponto de partida para abordagem responsável, não autorização para disparo em massa.
+
+## CNPJá (extrator por CNAE, alternativo)
+
+Quando `CNAE_PROVIDER=cnpja`, o extrator consulta o cadastro de CNPJ pela API do CNPJá, por meio da Netlify Function:
 
 ```text
 netlify/functions/cnae-search.mjs
@@ -24,7 +35,7 @@ O token fica somente no Netlify como `CNPJA_TOKEN`. A Function usa o endpoint de
 
 A cobrança do CNPJá é por registro lido, e não por registro importado: o campo "Limite" da tela é o controle de custo. Confira o plano contratado e os termos vigentes antes de aumentar o volume.
 
-Telefone obtido dessa base é o número declarado pela empresa à Receita Federal. A base não informa se o número tem WhatsApp ativo, e a interface trata esse dado como candidato a WhatsApp, nunca como contato confirmado.
+O CNPJá lê a mesma base da Receita, então devolve o mesmo telefone de 8 dígitos. Pagar não traz o nono dígito nem confirma WhatsApp.
 
 ## IBGE — tabela CNAE e municípios
 

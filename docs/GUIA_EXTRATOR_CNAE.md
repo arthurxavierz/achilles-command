@@ -5,7 +5,7 @@ A aba **Captação** passou a ter duas origens. Você escolhe no topo da tela:
 | Origem | De onde vem | Serve para |
 | --- | --- | --- |
 | **Google Maps** | Places API | Quem tem perfil público, com nota e avaliações. É o que já existia. |
-| **CNAE / Receita** | Cadastro público de CNPJ | Quem existe formalmente, filtrado por atividade, estado e data de abertura. |
+| **CNAE / Receita** | Cópia própria do cadastro público de CNPJ | Quem existe formalmente, filtrado por atividade, estado e data de abertura. Sem custo por busca. |
 
 São recortes diferentes do mesmo mercado. O Google encontra quem cuida da presença digital; o extrator encontra também quem não cuida — que costuma ser exatamente o cliente da Achilles.
 
@@ -15,43 +15,84 @@ Depois de importar, **as duas origens viram a mesma coisa**: cards na captação
 
 ## 1. O que você precisa fazer antes de usar
 
-Três passos. Sem eles a aba abre, mas a busca devolve um aviso em vez de empresas.
+O extrator lê uma **cópia própria** do cadastro da Receita, guardada no seu Supabase. Você baixa a base uma vez, atualiza uma vez por mês, e a partir daí busca à vontade sem pagar por consulta.
 
-### Passo 1 — Rodar a migração no Supabase
+### Passo 1 — Rodar as duas migrações no Supabase
 
-No painel do Supabase, **SQL Editor**, cole e execute:
-
-```text
-supabase/migration_2026_09_19_extrator_cnae.sql
-```
-
-Ela cria a tabela `prospect_lists` (as listas nomeadas) e adiciona em `prospects` os campos que só existem no cadastro da Receita: CNPJ, CNAE, cidade, UF, data de abertura e qualidade do telefone.
-
-Tem também um índice que impede o mesmo CNPJ virar dois contatos na sua organização.
-
-### Passo 2 — Contratar o acesso ao cadastro de CNPJ
-
-O extrator consulta o **CNPJá** (`cnpja.com`). É o provedor usado porque é o único que, numa chamada só, filtra por CNAE + UF + cidade + data de abertura **e já devolve o telefone junto**. Os concorrentes devolvem só a lista de CNPJs, e aí seria preciso uma consulta paga por empresa para descobrir o contato — muito mais caro.
-
-1. Crie a conta em `cnpja.com`.
-2. Assine um plano que inclua a **Pesquisa CNPJ** (o endpoint de listagem). A consulta avulsa por CNPJ, sozinha, não serve.
-3. Copie o token da área de API.
-
-Sobre custo: a cobrança é por registro lido, então **o campo "Limite" da tela é o seu controle de gasto**. Comece em 50 ou 100 para calibrar o filtro, e só suba o limite quando a prévia estiver vindo com a cara certa. Uma busca de limite 500 lê 500 registros mesmo que você importe 12.
-
-### Passo 3 — Cadastrar o token no Netlify
-
-Em **Site settings → Environment variables**:
+No painel do Supabase, **SQL Editor**, nesta ordem:
 
 ```text
-CNPJA_TOKEN = o token copiado
+supabase/migration_2026_09_19_extrator_cnae.sql   listas nomeadas e campos de CNPJ nos prospects
+supabase/migration_2026_09_20_base_cnpj.sql       a base própria de CNPJ
 ```
 
-Depois **faça um novo deploy** — variável nova só entra no ar em um build novo.
+A segunda cria `cnpj_estabelecimentos`, `cnpj_empresas` e a visão `cnpj_busca`, que junta as duas. Leitura é liberada para quem está logado no Command; escrita, só para o carregador.
 
-O token fica só no servidor. Quem consulta o CNPJá é a Function `cnae-search.mjs`; o navegador nunca vê a chave.
+### Passo 2 — Carregar a base
 
----
+Você **não precisa baixar nada à mão**. O carregador lê os arquivos direto da Receita, descomprime em memória e guarda só o que passa no filtro — você precisa de banda, não de espaço em disco.
+
+Antes, as duas variáveis de ambiente (as mesmas do Netlify). No PowerShell:
+
+```powershell
+$env:SUPABASE_URL="https://SEU-PROJETO.supabase.co"
+$env:SUPABASE_SERVICE_ROLE_KEY="eyJ..."
+```
+
+A `service_role` é a chave de servidor. Ela só é usada aqui, no seu computador, e nunca vai para o navegador.
+
+Depois:
+
+```bash
+# 1. Mede quanto seria importado. Não grava nada. Rode primeiro.
+node tools/carregar-base-cnpj.mjs --contar
+
+# 2. Ver funcionando em poucos minutos, com 1 dos 10 arquivos.
+node tools/carregar-base-cnpj.mjs --contar --arquivos 1
+
+# 3. Carregar de verdade. Reserve algumas horas.
+node tools/carregar-base-cnpj.mjs --carregar
+```
+
+O padrão é **MG, GO e DF**, somente empresas ativas, somente prováveis celulares, e restrito aos 405 CNAEs de negócio local — cerca de 830 mil empresas e uns 500 MB de banco.
+
+Para mudar o recorte:
+
+```bash
+# mais estados
+node tools/carregar-base-cnpj.mjs --carregar --ufs MG,GO,DF,SP,PR
+
+# todos os CNAEs, inclusive indústria e agro (triplica o volume)
+node tools/carregar-base-cnpj.mjs --carregar --todos-cnaes
+
+# incluir também os telefones fixos
+node tools/carregar-base-cnpj.mjs --carregar --com-telefone
+```
+
+Rodar de novo não duplica nada: o carregador faz upsert pelo CNPJ. Ampliar o recorte é rodar de novo com os estados novos.
+
+**Sobre o plano do Supabase:** o gratuito são 500 MB, e o recorte padrão bate no teto. Se você for carregar mais que MG/GO/DF, conte com o plano Pro.
+
+### Passo 3 — Atualizar uma vez por mês
+
+A Receita publica um arquivo novo todo mês. Para trocar a base:
+
+```bash
+node tools/carregar-base-cnpj.mjs --carregar --competencia 2026-10 --limpar-antigas
+```
+
+`--limpar-antigas` apaga as linhas da competência anterior depois que a nova entrou. Entre uma carga e outra, a tela mostra a data dos dados, para você saber a idade do que está vendo.
+
+### Opcional — CNPJá como reserva
+
+Se você precisar de um estado ou de um CNAE que não está na base carregada, dá para apontar o extrator para a API do CNPJá sem mexer em mais nada:
+
+```text
+CNAE_PROVIDER = cnpja
+CNPJA_TOKEN   = seu token de cnpja.com
+```
+
+Isso cobra por registro lido. Na prática é mais barato ampliar a carga da base própria; a reserva existe para uma busca pontual fora do recorte.
 
 ## 2. Como usar no dia a dia
 
@@ -80,7 +121,7 @@ O score do extrator já leva isso em conta na hora de sugerir o melhor encaixe.
 
 - **Somente empresas ativas** — deixe ligado. Empresa baixada não compra.
 - **Somente com telefone** — deixe ligado. Sem contato, o lead não serve para abordagem.
-- **Somente celular** — o corte mais duro e o mais útil: fixo não abre conversa no WhatsApp.
+- **Somente prováveis celulares** — o corte mais duro e o mais útil: fixo não abre conversa no WhatsApp. Leia a seção 3 antes de confiar nele.
 - **Incluir CNAE secundário** — amplia bastante o resultado. Uma empresa registrada como comércio mas que também presta o serviço que você procura aparece aqui.
 
 ### A prévia
@@ -91,14 +132,17 @@ Cada telefone recebe uma etiqueta:
 
 | Etiqueta | O que significa |
 | --- | --- |
-| **Celular · candidato a WhatsApp** | Número de celular. É o que dá para abordar. |
-| **Possível fixo** | Número fixo. Não abre conversa no WhatsApp. |
-| **Telefone incompleto** | Número com quantidade de dígitos fora do padrão. |
+| **Provável celular · 9º dígito reconstruído** | Era celular na numeração antiga. É o que dá para abordar — com a ressalva da seção 3. |
+| **Celular · candidato a WhatsApp** | Número já veio com 9 dígitos. Raro nesta base. |
+| **Fixo · não abre WhatsApp** | Número fixo. |
+| **Telefone incompleto** | Quantidade de dígitos fora do padrão. |
 | **Sem telefone** | Não entra na importação. |
 
 Empresa que você já tem no Achilles aparece marcada com **"Já está no Achilles"** — dá para desmarcar antes de importar, e mesmo se esquecer, a importação não duplica.
 
-Quem tem celular já vem pré-marcado. O resto é decisão sua.
+Quem tem provável celular já vem pré-marcado. O resto é decisão sua.
+
+Acima da busca fica uma faixa dizendo qual recorte está carregado (estados, quantidade e mês dos dados). Se você pedir um estado ou um CNAE fora da carga, a tela explica isso em vez de devolver uma lista vazia sem motivo — são coisas diferentes: “não existe empresa” e “não foi carregado”.
 
 ### Nomear e importar
 
@@ -123,22 +167,31 @@ Abaixo do extrator ficam todas as listas, com quantos contatos têm, quantos for
 
 ---
 
-## 3. Sobre o telefone: leia antes de escalar volume
+## 3. O telefone: leia isto antes de qualquer disparo
 
-O telefone vem do cadastro da Receita Federal. A Receita informa o número que a empresa declarou. **Ela não informa se aquele número tem WhatsApp ativo.**
+Esta é a limitação mais importante do sistema, e ela vem da fonte.
 
-Por isso a interface fala em *candidato a WhatsApp*, nunca em WhatsApp confirmado. Um celular com o formato certo é uma boa aposta, não uma certeza.
+**O cadastro da Receita guarda o telefone com 8 dígitos.** O nono dígito dos celulares simplesmente não está lá. Conferido no arquivo de setembro de 2026: 910.396 telefones de 8 dígitos e **nenhum** de 9.
 
-Confirmar de verdade exige uma API de validação de WhatsApp à parte, com custo por número. Vale a pena quando o volume justificar; não vale para 20 contatos por dia.
+Isso não se resolve pagando. As APIs comerciais leem essa mesma base e devolvem o mesmo número truncado — foi testado.
 
-Outros cuidados que valem desde já:
+O que o Achilles faz: na numeração antiga, celular começava com 6, 7, 8 ou 9 e fixo começava com 2, 3, 4 ou 5. Um número de 8 dígitos começando com 6 a 9 era celular, e hoje é o mesmo número com um 9 na frente. Isso vale para cerca de **45% dos telefones** da base.
 
-- Telefone de cadastro público é ponto de partida, não autorização. Abordagem comercial fria pede contexto e uma saída fácil para quem não quer receber.
+Por isso a tela diz **"provável celular · 9º dígito reconstruído"**, e nunca "WhatsApp". A diferença não é preciosismo:
+
+- o número pode ter sido reciclado para outro dono;
+- o cadastro pode estar desatualizado há anos;
+- a linha pode estar desativada;
+- e mesmo estando certa, nada garante que existe WhatsApp naquele número.
+
+Confirmar de verdade exige uma API de validação de WhatsApp à parte, com custo por número. Vale quando o volume justificar; não vale para 20 contatos por dia.
+
+Os outros cuidados, que valem desde o primeiro disparo:
+
+- Telefone em base pública é ponto de partida, não autorização. Abordagem fria pede contexto e uma saída fácil para quem não quer receber.
 - Quem pedir para não receber mais precisa ser marcado e nunca mais abordado.
-- Volume alto em número novo queima o número. O caminho é começar baixo e subir devagar.
-- Confira os termos vigentes do CNPJá e do WhatsApp antes de aumentar a escala.
-
----
+- Volume alto em número novo queima o número. Comece baixo e suba devagar.
+- A base é pública, mas o uso continua sujeito à LGPD e às regras do WhatsApp.
 
 ## 4. O score do extrator
 
@@ -155,26 +208,28 @@ Uma diferença importante em relação ao Google: o card de um contato vindo do 
 Dois testes acompanham o código.
 
 ```bash
-# Function de extração. Não precisa instalar nada nem estar online.
+# Function de extração e leitura de telefone. Não precisa instalar nada.
 node tools/testar-cnae-search.mjs
 
 # Interface completa. Precisa do jsdom uma vez: npm install jsdom
 node tools/testar-extrator-ui.mjs
 ```
 
-O segundo percorre o caminho inteiro num DOM simulado e verifica, entre outras coisas, as três regras que não podem quebrar: importar não cria lead no CRM, não marca ninguém como abordado, e reimportar a mesma busca não duplica contato.
+São 111 verificações. O primeiro cobre os dois provedores, os filtros enviados ao banco e a leitura do telefone. O segundo percorre o caminho inteiro num DOM simulado e checa as três regras que não podem quebrar: importar não cria lead no CRM, não marca ninguém como abordado, e reimportar a mesma busca não duplica contato.
 
 Checklist manual, na primeira vez:
 
-1. Abra Captação e troque para **CNAE / Receita**.
+1. Abra Captação e troque para **CNAE / Receita**. Confira a faixa com o recorte carregado.
 2. Digite `clínica` e confirme que aparecem sugestões com código e descrição.
 3. Marque um CNAE, deixe MG, sem cidade.
 4. Limite 50, somente ativas, somente com telefone.
 5. Busque e confira que a prévia traz CNPJ, cidade e etiqueta de telefone.
-6. Desmarque tudo e confirme que **Importar** fica bloqueado.
-7. Marque 2 ou 3, dê um nome à lista e importe.
-8. Confirme que os cards apareceram e que **nenhum lead novo** surgiu no CRM.
-9. Abra o WhatsApp de um contato **seu** antes de abordar qualquer empresa de verdade.
+6. Peça um estado fora da carga (SP, por exemplo) e confirme que a tela **explica** em vez de devolver lista vazia.
+7. Desmarque tudo e confirme que **Importar** fica bloqueado.
+8. Marque 2 ou 3, dê um nome à lista e importe.
+9. Confirme que os cards apareceram e que **nenhum lead novo** surgiu no CRM.
+10. Abra o WhatsApp de um contato **seu** antes de abordar qualquer empresa de verdade.
+11. Pegue 5 números reconstruídos e confira no WhatsApp se existem mesmo. É assim que você descobre a taxa de acerto da reconstrução do 9º dígito na sua região.
 
 ---
 
