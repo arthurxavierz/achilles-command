@@ -573,21 +573,40 @@ const mbDados = bytesEstimados / 1048576;
 console.log(`Espaço estimado no banco: ~${mb(bytesEstimados)} MB de dados + índices (~${(mbDados * 1.6).toFixed(0)} MB no total)`);
 
 if (parcial) {
-  /* Os dez arquivos não têm o mesmo tamanho: o 0 sozinho é 2,1 GB e os outros
-     nove têm ~325 MB cada. Por isso a projeção usa a proporção de bytes, e não
-     a contagem de arquivos — extrapolar "1 de 10" daria um número muito baixo. */
-  const MB_POR_ARQUIVO = [2139, 326, 321, 351, 325, 320, 352, 323, 325, 350];
-  const total = MB_POR_ARQUIVO.reduce((a, b) => a + b, 0);
-  const lidosMb = cfg.arquivos.reduce((soma, i) => soma + MB_POR_ARQUIVO[i], 0);
-  const fator = total / lidosMb;
+  /* Projetar daqui é traiçoeiro, e o jeito antigo errou feio: a proporção de
+     bytes dizia 830 mil para MG/GO/DF, e a carga real deu 1,8 milhão — mais
+     que o dobro.
+
+     O motivo é o arquivo 0. Ele não é só maior em bytes, é muito mais denso
+     em empresas que passam no filtro: sozinho respondeu por 44% de tudo que
+     foi aceito (790 mil de 1,8 milhão), contra 50 a 150 mil de cada um dos
+     outros nove. Quem projeta a partir de um arquivo qualquer que não seja o
+     0 subestima; quem projeta a partir do 0 superestima.
+
+     Então aqui não se finge precisão: a proporção observada na carga real de
+     setembro/2026 vira uma faixa, com o aviso de que só o --contar completo
+     responde de verdade. */
+  /* Fatia do resultado que cada arquivo respondeu numa carga real (MG, GO,
+     DF, ativas, provável celular, CNAEs de negócio local, competência
+     2026-09). Não é palpite: são as 1.797.165 empresas daquela carga,
+     divididas por arquivo.
+
+     A variação entre arquivos é enorme — o 1 trouxe 52 mil e o 8 trouxe 148
+     mil — e é isso que torna traiçoeiro projetar de um arquivo só. */
+  const FATIA = [0.440, 0.029, 0.074, 0.081, 0.040, 0.078, 0.069, 0.047, 0.083, 0.059];
+  const fatia = cfg.arquivos.reduce((soma, i) => soma + FATIA[i], 0);
+  const estimado = aceitas / fatia;
+
   console.log('');
-  console.log(`Você leu ${cfg.arquivos.length} de 10 arquivos (${lidosMb} MB de ${total} MB).`);
-  console.log(`PROJEÇÃO para a base inteira (fator ${fator.toFixed(1)}x):`);
-  console.log(`  empresas .......... ~${num(Math.round(aceitas * fator))}`);
-  console.log(`  espaço no banco ... ~${(bytesEstimados * fator / 1073741824 * 1.6).toFixed(1)} GB`);
+  console.log(`Você leu ${cfg.arquivos.length} de 10 arquivos, que numa carga real valeram ${(fatia * 100).toFixed(0)}% do resultado.`);
+  console.log('ORDEM DE GRANDEZA para a base inteira:');
+  console.log(`  empresas .......... ~${num(Math.round(estimado))}`);
+  console.log(`  espaço no banco ... ~${(bytesEstimados / fatia / 1073741824 * 1.6).toFixed(1)} GB`);
   console.log('');
-  console.log('A projeção assume que os estados e CNAEs estão distribuídos por igual');
-  console.log('entre os arquivos. Serve para decidir o plano, não como número exato.');
+  console.log('A proporção vem de uma carga medida, mas com outro recorte de estados ou');
+  console.log('CNAEs ela muda. Para um número confiável, rode o --contar sem --arquivos.');
+  console.log('E confira o espaço livre do seu plano no Supabase antes de carregar:');
+  console.log('estourar o limite trava a gravação no meio.');
 }
 
 console.log('========================================');

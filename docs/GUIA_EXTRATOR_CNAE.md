@@ -58,7 +58,18 @@ node tools/carregar-base-cnpj.mjs --contar --arquivos 1
 node tools/carregar-base-cnpj.mjs --carregar
 ```
 
-O padrão é **MG, GO e DF**, somente empresas ativas, somente prováveis celulares, e restrito aos 405 CNAEs de negócio local — cerca de 830 mil empresas e uns 500 MB de banco.
+O padrão é **MG, GO e DF**, somente empresas ativas, somente prováveis celulares, e restrito aos 405 CNAEs de negócio local.
+
+Medido numa carga real da competência 2026-09:
+
+| | |
+| --- | --- |
+| Empresas | **1.797.165** (MG 1.141.156 · GO 454.461 · DF 201.548) |
+| Razões sociais | 1.782.171 |
+| Tempo | ~65 min |
+| Espaço no banco | **~1,1 GB** |
+
+**Esse 1,1 GB não cabe no plano gratuito do Supabase, que são 500 MB.** Confira o espaço do seu plano antes de carregar: estourar o limite trava a gravação no meio.
 
 Para mudar o recorte:
 
@@ -75,7 +86,9 @@ node tools/carregar-base-cnpj.mjs --carregar --com-telefone
 
 Rodar de novo não duplica nada: o carregador faz upsert pelo CNPJ. Ampliar o recorte é rodar de novo com os estados novos.
 
-**Sobre o plano do Supabase:** o gratuito são 500 MB, e o recorte padrão bate no teto. Se você for carregar mais que MG/GO/DF, conte com o plano Pro.
+**Sobre o plano do Supabase:** o gratuito são 500 MB e o recorte padrão ocupa ~1,1 GB, então ele exige o plano Pro. Para caber no gratuito é preciso apertar bem mais — um estado só e uma lista curta de CNAEs.
+
+Uma advertência sobre estimar antes de carregar: `--contar --arquivos 1` projeta a partir de um arquivo só, e os dez não são equivalentes. O arquivo 0 sozinho responde por 44% do resultado, e entre os outros nove a variação vai de 52 mil a 148 mil empresas. O script corrige isso com as proporções medidas numa carga real, mas se o seu recorte de estados ou CNAEs for muito diferente, só o `--contar` completo responde de verdade.
 
 ### Passo 3 — Atualizar uma vez por mês
 
