@@ -241,7 +241,8 @@ const cardTexto = doc.querySelector('.prospect-card').textContent;
 check('card mostra o responsável', cardTexto.includes('Joao Batista de Souza'));
 check('card mostra o telefone formatado', /\(34\)\s?9\d{4}-\d{4}/.test(cardTexto), cardTexto.match(/\(34\)[^·]*/)?.[0]);
 check('card não mostra o telefone cru', !cardTexto.includes('+5534'));
-check('card marca o WhatsApp como provável', cardTexto.includes('WhatsApp provável'));
+check('card diz por inteiro que o 9º dígito foi reconstruído',
+  cardTexto.includes('Provável celular · 9º dígito reconstruído'));
 
 // --- a mensagem que cai no WhatsApp -----------------------------------------
 doc.querySelector('[data-action="prospect-approach"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true }));

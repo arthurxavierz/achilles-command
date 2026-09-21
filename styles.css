@@ -979,16 +979,30 @@ h1, h2, h3, h4,
 .extractor-aviso svg { flex: 0 0 auto; margin-top: 1px; }
 
 .extractor-preview { padding: 16px; }
-.extractor-preview .toolbar { margin: 0 0 12px; }
-.extractor-table { min-width: 940px; }
-.extractor-table .col-check { width: 34px; text-align: center; }
-.extractor-table input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--gold); cursor: pointer; }
-.extractor-table td { vertical-align: top; }
-.extractor-table .cell-strong { color: var(--text); font-weight: 600; font-size: 11.5px; }
-.extractor-table .cell-sub { margin-top: 2px; font-size: 9.5px; color: var(--faint); }
-.extractor-table .mono { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .02em; }
-.extractor-table .tag { margin-top: 4px; }
-.extractor-table tr.row-selected { background: var(--gold-softer); }
+.extractor-preview .toolbar { margin: 0 0 14px; }
+.extractor-select-all {
+  display: inline-flex; align-items: center; gap: 7px; margin-right: 4px;
+  font-size: 10.5px; color: var(--text-soft); cursor: pointer;
+}
+.extractor-select-all input { width: 15px; height: 15px; accent-color: var(--gold); cursor: pointer; }
+
+/* A prévia usa o mesmo card da captação, em duas colunas quando cabe: são
+   dezenas de contatos e uma coluna só obrigaria a rolar demais. */
+.extractor-cards {
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 12px; max-height: 1100px;
+}
+.prospect-card.selectable { padding-top: 12px; }
+.prospect-card.picked { border-color: rgba(201, 162, 65, 0.34); background: var(--gold-softer); }
+.prospect-pick {
+  display: inline-flex; align-items: center; gap: 8px; margin-bottom: 10px;
+  padding: 5px 11px 5px 8px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: rgba(245, 241, 230, 0.025);
+  font-size: 9.5px; letter-spacing: .04em; text-transform: uppercase;
+  font-family: var(--font-mono); color: var(--muted);
+}
+.prospect-card.picked .prospect-pick { color: var(--gold-light); border-color: rgba(201, 162, 65, 0.3); background: var(--gold-soft); }
+.prospect-pick input { width: 17px; height: 17px; accent-color: var(--gold); cursor: pointer; }
 
 .extractor-import { display: grid; grid-template-columns: minmax(240px, 1.6fr) minmax(200px, 1fr) auto; gap: 16px; align-items: end; padding: 16px; }
 .extractor-import .form-group { margin: 0; }
@@ -1021,29 +1035,13 @@ h1, h2, h3, h4,
   .list-row-actions { justify-content: stretch; }
   .list-row-actions .btn { flex: 1; }
 
-  /* A prévia deixa de ser tabela e vira um cartão por empresa. Uma tabela de
-     8 colunas no celular obriga a rolar de lado para marcar a caixa que está
-     na primeira coluna e ler o telefone que está na sexta — e marcar contato
-     é exatamente o que se faz nessa tela. */
+  /* Uma coluna e a caixa de seleção com alvo de toque maior: marcar contato
+     é o que se faz nessa tela, e no celular isso é dedo, não ponteiro. */
   .extractor-preview { padding: 12px; }
-  .extractor-preview .table-wrap { overflow: visible; }
-  .extractor-table { min-width: 0; display: block; }
-  .extractor-table thead { display: none; }
-  .extractor-table tbody, .extractor-table tr, .extractor-table td { display: block; width: auto; }
-  .extractor-table tr {
-    position: relative; margin-bottom: 10px; padding: 12px 12px 12px 44px;
-    border: 1px solid var(--border); border-radius: 12px; background: var(--panel);
-  }
-  .extractor-table tr.row-selected { border-color: var(--border-strong); background: var(--gold-softer); }
-  .extractor-table td { padding: 2px 0; border: 0; font-size: 11.5px; }
-  .extractor-table td:empty { display: none; }
-  /* A caixa de seleção fica fixa no canto, ao alcance do polegar. */
-  .extractor-table .col-check { position: absolute; left: 12px; top: 12px; width: auto; padding: 0; }
-  .extractor-table input[type="checkbox"] { width: 20px; height: 20px; }
-  /* No celular o que importa é nome, cidade, telefone e score; CNPJ, CNAE e
-     data de abertura continuam no CSV e na versão de computador. */
-  .extractor-table td.hide-mobile { display: none !important; }
-  .extractor-table td:last-child::before { content: "Score "; color: var(--muted); font-size: 10px; }
+  .extractor-cards { grid-template-columns: 1fr; max-height: none; overflow: visible; }
+  .prospect-pick { padding: 8px 14px 8px 10px; min-height: 38px; }
+  .prospect-pick input { width: 20px; height: 20px; }
+  .extractor-select-all { min-height: 38px; }
   .extractor-preview .toolbar { flex-direction: column; align-items: stretch; gap: 10px; }
   .extractor-preview .toolbar-right { display: flex; }
   .extractor-preview .toolbar-right .btn { flex: 1; }

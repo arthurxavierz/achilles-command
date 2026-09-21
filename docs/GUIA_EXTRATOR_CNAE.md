@@ -154,9 +154,13 @@ O score do extrator já leva isso em conta na hora de sugerir o melhor encaixe.
 
 ### A prévia
 
-A busca **não importa nada**. Ela mostra uma tabela para você revisar, com empresa, CNPJ, cidade, CNAE, telefone, abertura e score.
+A busca **não importa nada**, mas isso não quer dizer que você fica só olhando. A prévia usa **o mesmo card da busca por Google Maps**: score, os três encaixes (Site, Digital, IA), o melhor deles, e os botões de **Abordagem**, **WhatsApp** e **Adicionar ao CRM** já funcionando ali.
 
-Cada telefone recebe uma etiqueta:
+Ou seja: dá para abrir a conversa com uma empresa direto da prévia, sem importar nada. O que a importação faz é outra coisa — dar um nome à lista e guardar o conjunto para você voltar depois.
+
+A diferença em relação ao card do Google é só o que o cadastro da Receita não tem: não há nota, avaliações nem link do site, e aparece um CNPJ, o nome de quem assina pela empresa e a etiqueta de qualidade do telefone.
+
+Cada card traz uma etiqueta de telefone:
 
 | Etiqueta | O que significa |
 | --- | --- |
@@ -274,11 +278,14 @@ node tools/testar-cnae-search.mjs
 # Interface completa. Precisa do jsdom uma vez: npm install jsdom
 node tools/testar-extrator-ui.mjs
 
+# Prévia: abordagem, WhatsApp e CRM funcionando antes de importar.
+node tools/testar-previa.mjs
+
 # Carregador. Precisa de 3 ZIPs da Receita numa pasta; o arquivo explica quais.
 node tools/testar-carregador.mjs C:/caminho/da/pasta
 ```
 
-São 164 verificações. O primeiro cobre os dois provedores, os filtros enviados ao banco e a leitura do telefone. O terceiro roda o carregador de verdade contra um Supabase simulado e confere o que seria gravado. O segundo percorre o caminho inteiro num DOM simulado e checa as três regras que não podem quebrar: importar não cria lead no CRM, não marca ninguém como abordado, e reimportar a mesma busca não duplica contato.
+São 181 verificações. O primeiro cobre os dois provedores, os filtros enviados ao banco e a leitura do telefone. O terceiro roda o carregador de verdade contra um Supabase simulado e confere o que seria gravado. O segundo percorre o caminho inteiro num DOM simulado e checa as três regras que não podem quebrar: importar não cria lead no CRM, não marca ninguém como abordado, e reimportar a mesma busca não duplica contato.
 
 Checklist manual, na primeira vez:
 

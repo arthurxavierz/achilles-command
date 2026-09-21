@@ -815,36 +815,18 @@
      e qualidade do telefone ficam visíveis; id interno e payload, não. */
   function extractorPreview() {
     const x = state.extractor;
-    const all = x.results.length && x.selected.length === x.results.length;
+    const todas = x.results.length && x.selected.length === x.results.length;
     return `<div class="card extractor-preview">
-      <div class="toolbar"><div class="toolbar-left"><strong>Prévia da extração</strong><span class="text-muted">Revise e desmarque quem não faz sentido antes de importar.</span></div><div class="toolbar-right"><button class="btn btn-ghost btn-sm" data-action="extractor-select-phone">${icon('phone',13)} Só com celular</button><button class="btn btn-secondary btn-sm" data-action="extractor-export">${icon('download',13)} CSV</button></div></div>
-      <div class="table-wrap">
-        <table class="table extractor-table">
-          <thead><tr>
-            <th class="col-check"><input type="checkbox" id="extractor-select-all" ${all?'checked':''} aria-label="Selecionar todas" /></th>
-            <th>Empresa</th><th class="hide-mobile">CNPJ</th><th>Cidade</th><th class="hide-mobile">CNAE</th><th>Telefone</th><th class="hide-mobile">Abertura</th><th>Score</th>
-          </tr></thead>
-          <tbody>${x.results.map(extractorRow).join('')}</tbody>
-        </table>
+      <div class="toolbar">
+        <div class="toolbar-left"><strong>Prévia da extração</strong><span class="text-muted">Abordagem e WhatsApp já funcionam aqui. Desmarque quem não entra na lista.</span></div>
+        <div class="toolbar-right">
+          <label class="extractor-select-all"><input type="checkbox" id="extractor-select-all" ${todas?'checked':''} /> Todas</label>
+          <button class="btn btn-ghost btn-sm" data-action="extractor-select-phone">${icon('phone',13)} Só com celular</button>
+          <button class="btn btn-secondary btn-sm" data-action="extractor-export">${icon('download',13)} CSV</button>
+        </div>
       </div>
+      <div class="prospect-list extractor-cards">${x.results.map(r => prospectCard(r, true)).join('')}</div>
     </div>`;
-  }
-
-  function extractorRow(r) {
-    const checked = state.extractor.selected.includes(r.id);
-    const quality = PHONE_QUALITY[r.phoneQuality] || PHONE_QUALITY.none;
-    const duplicate = state.data.prospects.some(p => p.cnpj && p.cnpj === r.cnpj)
-      || state.data.leads.some(l => String(l.company||'').toLowerCase() === String(r.name||'').toLowerCase());
-    return `<tr class="${checked?'row-selected':''}">
-      <td class="col-check"><input type="checkbox" data-extractor-pick="${escapeHtml(r.id)}" ${checked?'checked':''} aria-label="Selecionar ${escapeHtml(r.name)}" /></td>
-      <td><div class="cell-strong">${escapeHtml(r.name)}</div>${r.legalName && r.legalName !== r.name ? `<div class="cell-sub">${escapeHtml(r.legalName)}</div>` : ''}${duplicate?`<span class="tag warning">Já está no Achilles</span>`:''}</td>
-      <td class="hide-mobile mono">${escapeHtml(formatCnpj(r.cnpj))}</td>
-      <td>${escapeHtml(r.city)}${r.state?` · ${escapeHtml(r.state)}`:''}</td>
-      <td class="hide-mobile"><div class="cell-sub">${escapeHtml(r.cnaeCode)}</div>${escapeHtml(r.cnae)}</td>
-      <td>${r.phone?`<div class="mono">${escapeHtml(formatPhone(r.phone))}</div>`:''}<span class="tag ${quality.tag}">${escapeHtml(quality.label)}</span></td>
-      <td class="hide-mobile">${r.foundedAt?escapeHtml(shortDate(r.foundedAt)):'—'}</td>
-      <td><strong>${Number(r.score||0)}</strong></td>
-    </tr>`;
   }
 
   function extractorImportBar(selected, withPhone) {
@@ -1135,7 +1117,9 @@
       const i = sel.indexOf(id);
       if (cb.checked && i < 0) sel.push(id);
       if (!cb.checked && i >= 0) sel.splice(i, 1);
-      cb.closest('tr')?.classList.toggle('row-selected', cb.checked);
+      cb.closest('.prospect-card')?.classList.toggle('picked', cb.checked);
+      const rotulo = cb.parentElement?.querySelector('span');
+      if (rotulo) rotulo.textContent = cb.checked ? 'Na lista' : 'Fora da lista';
       updateExtractorCounts();
     }));
 
@@ -1249,8 +1233,13 @@
     });
   }
 
-  function prospectCard(p) {
+  /* `selecionavel` liga a caixa de seleção do extrator. O card é o mesmo dos
+     dois lados de propósito: um contato da Receita e um do Google fazem a
+     mesma coisa daqui para a frente, e ver dois formatos diferentes só
+     obrigaria a reaprender a tela. */
+  function prospectCard(p, selecionavel = false) {
     const wa = whatsappDigits(p);
+    const marcado = selecionavel && state.extractor.selected.includes(p.id);
     // Número cru ("+553491234567") no card entrega que o dado saiu de um
     // banco. Formatado, é o que você leria em um cartão de visita.
     // Mostra o número que o botão de WhatsApp realmente abre. Exibir o de 8
@@ -1272,13 +1261,19 @@
       ['Digital', Number(p.digitalScore || 0)],
       ['IA', Number(p.automationScore || 0)]
     ];
-    return `<article class="card prospect-card" data-prospect-id="${p.id}">
+    return `<article class="card prospect-card ${selecionavel?'selectable':''} ${marcado?'picked':''}" data-prospect-id="${p.id}">
+      ${selecionavel?`<label class="prospect-pick"><input type="checkbox" data-extractor-pick="${escapeHtml(p.id)}" ${marcado?'checked':''} aria-label="Selecionar ${escapeHtml(p.name)}" /><span>${marcado?'Na lista':'Fora da lista'}</span></label>`:''}
       <div class="prospect-card-top"><div><div class="prospect-name">${escapeHtml(p.name)}</div><div class="prospect-category">${escapeHtml(p.category || 'Empresa local')}${p.distanceKm!=null?` · ${Number(p.distanceKm||0).toFixed(1)} km`:''}</div></div><div class="prospect-score"><strong>${p.score}</strong><span>Score</span></div></div>
       <div class="prospect-address">${escapeHtml(p.address || 'Endereço não informado')}${p.cnpj?` · CNPJ ${escapeHtml(formatCnpj(p.cnpj))}`:''}</div>
       <div class="prospect-signals">
         <span class="tag ${p.phone||p.whatsapp?'info':''}">${icon('phone',12)} ${escapeHtml(contact)}</span>
         ${p.contact?`<span class="tag" title="Quem assina pela empresa no cadastro da Receita. É provável que atenda, mas não é garantia.">${icon('users',12)} ${escapeHtml(p.contact)}</span>`:''}
-        ${wa?`<span class="tag whatsapp" title="${escapeHtml(quality?.label||'')}">${icon('message',12)} ${p.phoneQuality==='mobile_guess'?'WhatsApp provável':'WhatsApp'}</span>`:''}
+        ${quality
+          // Contato do extrator: o rótulo inteiro fica visível, e não escondido
+          // num title. É nele que está a ressalva de que o 9º dígito foi
+          // reconstruído, e em celular não existe passar o mouse por cima.
+          ? `<span class="tag ${quality.tag}">${icon('message',12)} ${escapeHtml(quality.label)}</span>`
+          : wa?`<span class="tag whatsapp">${icon('message',12)} WhatsApp</span>`:''}
         ${p.contactedAt?`<span class="tag gold">${icon('check',12)} Abordado ${shortDate(p.contactedAt)}</span>`:''}
         <span class="tag ${siteKnown&&(!p.website||p.siteUnreachable)?'gold':''}">${p.siteUnreachable?'Site fora do ar':p.website?'Site encontrado':siteKnown?'Sem site identificado':'Site não verificado'}</span>
         ${rating?`<span class="tag">★ ${rating.toFixed(1)} · ${reviews.toLocaleString('pt-BR')} avaliações</span>`:''}
@@ -1553,8 +1548,14 @@
   // A mensagem editada no modal vira a mensagem oficial daquele prospect.
   const approachText = p => String(p?.approachMessage||'').trim() || defaultApproach(p);
 
+  /* A prévia do extrator também conta: os botões de abordagem e WhatsApp
+     funcionam antes de importar, então o contato precisa ser encontrável
+     enquanto está só na prévia. */
   function findProspect(id) {
-    return state.prospecting.results.find(x=>x.id===id) || state.data.prospects.find(x=>x.id===id) || null;
+    return state.prospecting.results.find(x=>x.id===id)
+      || state.extractor.results.find(x=>x.id===id)
+      || state.data.prospects.find(x=>x.id===id)
+      || null;
   }
 
   function saveApproachDraft(id) {
@@ -1636,7 +1637,7 @@
   }
 
   async function enrichProspect(id) {
-    const p=state.prospecting.results.find(x=>x.id===id); if(!p?.website) return;
+    const p=findProspect(id); if(!p?.website) return;
     toast('Enriquecendo contato','Vou conferir o site público dessa empresa.');
     try{
       const response=await fetch(CFG.prospectEnrichUrl||'/.netlify/functions/prospect-enrich',{method:'POST',headers:await internalApiHeaders(),body:JSON.stringify({website:p.website})});
@@ -1666,7 +1667,7 @@
   }
 
   function addProspectToCrm(id) {
-    const p=state.prospecting.results.find(x=>x.id===id) || state.data.prospects.find(x=>x.id===id); if(!p)return;
+    const p=findProspect(id); if(!p)return;
     const duplicate=state.data.leads.find(l=>String(l.company).toLowerCase()===String(p.name).toLowerCase() || (p.phone && String(l.phone||'').replace(/\D/g,'')===String(p.phone).replace(/\D/g,'')));
     if(duplicate){p.crmLeadId=duplicate.id;upsertProspect(p);toast('Já está no CRM',`${p.name} já possui um lead cadastrado.`);renderCurrentPage();return;}
     const lead={id:uid('lead'),company:p.name,contact:p.contact||p.name,phone:p.whatsapp||p.phone||'',email:p.email||'',service:p.recommendedService||(!p.website?'Site / posicionamento digital':'Diagnóstico digital'),source:'Captação Achilles',stage:'new',score:Number(p.score||60),value:0,lastContact:todayISO(),nextAction:'Abordagem inicial',notes:`${p.category||'Empresa local'}${p.address?` · ${p.address}`:''}. Melhor encaixe: ${p.recommendedService||'Diagnóstico digital'}. Oportunidade: ${(p.reasons||p.scoreReasons||[]).join(', ')}.`,createdAt:todayISO()};
