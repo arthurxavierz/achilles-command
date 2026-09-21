@@ -158,7 +158,7 @@ A busca **não importa nada**, mas isso não quer dizer que você fica só olhan
 
 Ou seja: dá para abrir a conversa com uma empresa direto da prévia, sem importar nada. O que a importação faz é outra coisa — dar um nome à lista e guardar o conjunto para você voltar depois.
 
-A diferença em relação ao card do Google é só o que o cadastro da Receita não tem: não há nota, avaliações nem link do site, e aparece um CNPJ, o nome de quem assina pela empresa e a etiqueta de qualidade do telefone.
+A diferença em relação ao card do Google é o que o cadastro da Receita não tem: não há nota, avaliações, link do site **nem encaixe de serviço sugerido** — o motivo está na seção 4. Em troca aparecem o CNPJ, o nome de quem assina pela empresa e a etiqueta de qualidade do telefone.
 
 Cada card traz uma etiqueta de telefone:
 
@@ -240,32 +240,47 @@ Na carga de MG/GO/DF isso cobre a grande maioria das empresas. As que sobram sã
 
 ## 3c. A mensagem
 
-Um contato do extrator recebe a mesma estrutura de abordagem que um do Google — abertura, oportunidade, ganho e convite — mas montada com o que existe aqui.
+Um contato do extrator recebe a mesma estrutura de abordagem que um do Google — abertura, contexto, proposta e convite — mas com um conteúdo deliberadamente genérico.
 
-A do Google se apoia em nota, avaliações e se a empresa tem site. Nada disso existe no cadastro da Receita, e inventar observação seria mentir na primeira frase. Em compensação existem duas coisas que a do Google quase nunca tem: **o segmento pelo nome que as pessoas usam** e **a cidade**.
+O motivo é o mesmo do score: aqui não existe fato observado sobre a empresa. Escolher o discurso por um "melhor encaixe" deduzido do CNAE seria chutar, e chute na primeira mensagem custa o contato.
 
-O resultado, para um restaurante em Uberaba com melhor encaixe em posicionamento digital:
+O resultado, para um restaurante em Uberaba:
 
 > {{saudacao}}, João! Tudo bem? Sou o Arthur, da Achilles Media.
-> Passei pelo Restaurante Sabor Mineiro, aí em Uberaba, e trabalho com negócios como o de vocês. Na prática, o que costuma fazer mais diferença é a forma como vocês aparecem para quem procura restaurante por perto: perfil bem montado, presença com constância e um caminho claro para a pessoa chamar no WhatsApp.
+> Analisei o Restaurante Sabor Mineiro, aí em Uberaba, e trabalho com soluções digitais para negócios como o de vocês: site, presença digital e automação de processos.
 >
-> São ajustes que transformam quem já está procurando em conversa de verdade.
+> A ideia é entender a necessidade de vocês e mostrar o que faz sentido no caso do Restaurante Sabor Mineiro.
 >
 > Consigo te apresentar brevemente?
 
-O trecho do meio muda conforme o melhor encaixe — site, posicionamento digital ou automação. O `{{saudacao}}` continua sendo variável, resolvida no momento do envio: mensagem preparada de manhã não pode chegar dando bom dia às oito da noite.
+O `{{saudacao}}` continua sendo variável, resolvida no momento do envio: mensagem preparada de manhã não pode chegar dando bom dia às oito da noite.
 
-Como em toda abordagem do Command, você pode editar antes de enviar, e o texto editado passa a ser o oficial daquele contato.
+Como em toda abordagem do Command, você edita antes de enviar, e o texto editado passa a ser o oficial daquele contato. Se você gerar com o Claude, ele recebe a instrução explícita de não afirmar nada sobre site ou presença digital — senão escreveria "vi que vocês precisam de X", que é exatamente o chute que saiu da tela.
 
-## 4. O score do extrator
+## 4. O score do extrator, e por que não há encaixe sugerido
 
-O score do Google Places usa nota e avaliações. O extrator não tem nenhuma das duas, então usa o que existe no cadastro: o CNAE, o porte, o tempo de atividade e a qualidade do contato.
+O card do Google Maps mostra três notas — Site, Posicionamento digital e Automação — e aponta o melhor encaixe. Isso funciona lá porque existe fato observado: dá para ver se a empresa tem site, qual a nota e quantas avaliações tem.
 
-É uma **estimativa de encaixe comercial**, não um retrato da empresa. Serve para ordenar a lista, não para decidir sozinha.
+**O extrator não mostra isso, de propósito.** A primeira versão mostrava, com as notas deduzidas do prefixo do CNAE, da idade da empresa e do porte. Ou seja: um número com aparência de critério, sem critério por trás. O risco disso não é ser impreciso — é você decidir por ele, e priorizar "automação" para uma empresa só porque o CNAE dela começa com 69.
 
-Uma diferença importante em relação ao Google: o card de um contato vindo do extrator diz **"Site não verificado"**, e não "sem site". A Receita simplesmente não guarda esse campo — ninguém procurou o site dessa empresa. Pela mesma razão, a abordagem gerada para esses contatos usa o discurso equilibrado, e não o de "vi que vocês não têm site": seria afirmar algo que não foi conferido.
+O que sobrou é o que o cadastro realmente diz, e serve só para ordenar a lista:
 
----
+| Sinal | Peso |
+| --- | --- |
+| Provável celular | +16 (o que mais pesa: lead sem contato não é lead) |
+| Telefone fixo | −10 |
+| Sem telefone | −25 |
+| E-mail no cadastro | +6 |
+| Aberta há menos de 2 anos | +8 |
+| Porte ME ou EPP | +5 |
+| Porte "Demais" | −5 |
+| Situação diferente de ativa | −30 |
+
+Empresa nova pontua mais porque costuma ser conversa mais fácil, não porque seja empresa melhor.
+
+**Qual serviço oferecer sai da conversa, não do CNAE.** É por isso que a mensagem apresenta o leque em vez de escolher um lado.
+
+O card de um contato do extrator também diz **"Site não verificado"**, e não "sem site". A Receita não guarda esse campo — ninguém procurou o site dessa empresa, e afirmar que ela não tem seria inventar.
 
 ## 5. Conferindo que está tudo certo
 
@@ -285,7 +300,7 @@ node tools/testar-previa.mjs
 node tools/testar-carregador.mjs C:/caminho/da/pasta
 ```
 
-São 181 verificações. O primeiro cobre os dois provedores, os filtros enviados ao banco e a leitura do telefone. O terceiro roda o carregador de verdade contra um Supabase simulado e confere o que seria gravado. O segundo percorre o caminho inteiro num DOM simulado e checa as três regras que não podem quebrar: importar não cria lead no CRM, não marca ninguém como abordado, e reimportar a mesma busca não duplica contato.
+São 190 verificações. O primeiro cobre os dois provedores, os filtros enviados ao banco e a leitura do telefone. O terceiro roda o carregador de verdade contra um Supabase simulado e confere o que seria gravado. O segundo percorre o caminho inteiro num DOM simulado e checa as três regras que não podem quebrar: importar não cria lead no CRM, não marca ninguém como abordado, e reimportar a mesma busca não duplica contato.
 
 Checklist manual, na primeira vez:
 

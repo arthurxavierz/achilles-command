@@ -1025,7 +1025,7 @@
     const x = state.extractor;
     const rows = x.results.filter(r => x.selected.includes(r.id));
     if (!rows.length) { toast('Nada selecionado', 'Marque as empresas que você quer exportar.'); return; }
-    const cols = ['name','legalName','cnpj','cnaeCode','cnae','city','state','address','phone','phoneQualityLabel','email','foundedAt','statusText','size','score','band','recommendedService'];
+    const cols = ['name','legalName','cnpj','cnaeCode','cnae','city','state','address','contact','phone','whatsapp','phoneQualityLabel','email','foundedAt','statusText','size','score','band'];
     const esc = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
     const csv = '﻿' + [cols.join(';'), ...rows.map(r => cols.map(c => esc(r[c])).join(';'))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -1256,6 +1256,10 @@
     // Prospect vindo do extrator não passou por busca de site: o card não
     // pode afirmar ausência do que ninguém procurou.
     const siteKnown = !!p.website || !usaBaseDaReceita(p);
+    /* Contato do extrator não tem encaixe sugerido: as notas por serviço
+       vinham do prefixo do CNAE e da idade da empresa, sem olhar nada dela.
+       Número com cara de critério, sem critério, leva a decidir por ele. */
+    const temEncaixe = Number(p.siteScore || 0) + Number(p.digitalScore || 0) + Number(p.automationScore || 0) > 0;
     const serviceScores = [
       ['Site', Number(p.siteScore || 0)],
       ['Digital', Number(p.digitalScore || 0)],
@@ -1279,7 +1283,7 @@
         ${rating?`<span class="tag">★ ${rating.toFixed(1)} · ${reviews.toLocaleString('pt-BR')} avaliações</span>`:''}
         <span class="tag ${scoreClass}">${escapeHtml(p.band || p.scoreBand || 'Oportunidade')}</span>
       </div>
-      <div class="prospect-service-scores">${serviceScores.map(([label,value])=>`<span><small>${label}</small><strong>${value}</strong></span>`).join('')}<span class="recommended"><small>Melhor encaixe</small><strong>${escapeHtml(p.recommendedService || 'Diagnóstico digital')}</strong></span></div>
+      ${temEncaixe?`<div class="prospect-service-scores">${serviceScores.map(([label,value])=>`<span><small>${label}</small><strong>${value}</strong></span>`).join('')}<span class="recommended"><small>Melhor encaixe</small><strong>${escapeHtml(p.recommendedService || 'Diagnóstico digital')}</strong></span></div>`:''}
       <div class="prospect-reasons">${(p.reasons||p.scoreReasons||[]).slice(0,4).map(r=>`<span>${escapeHtml(r)}</span>`).join('')}</div>
       <div class="prospect-links">${p.website&&safeExternalUrl(p.website)?`<a href="${escapeHtml(safeExternalUrl(p.website))}" target="_blank" rel="noopener">Site</a>`:''}${p.instagram?`<a href="${escapeHtml(normalizeSocialUrl(p.instagram,'instagram'))}" target="_blank" rel="noopener">Instagram</a>`:''}${p.googleUrl&&safeExternalUrl(p.googleUrl)?`<a href="${escapeHtml(safeExternalUrl(p.googleUrl))}" target="_blank" rel="noopener">Google Maps</a>`:''}</div>
       <div class="prospect-actions">
@@ -1374,9 +1378,12 @@
   function prospectFilterBar(all) {
     const f=state.prospecting.filters||{contact:[],fit:[]};
     const chip=(group,value,label,count)=>`<button type="button" class="filter-chip ${f[group]?.includes(value)?'active':''}" data-filter-group="${group}" data-filter-value="${escapeHtml(value)}" aria-pressed="${f[group]?.includes(value)?'true':'false'}">${escapeHtml(label)}<em>${count}</em></button>`;
+    // Lista vinda do extrator não tem encaixe sugerido, então o grupo inteiro
+    // sairia com três zeros. Filtro que nunca filtra é só ruído.
+    const temEncaixe = FIT_FILTERS.some(([value])=>all.some(p=>p.recommendedService===value));
     return `<div class="prospect-filters">
       <div class="filter-group"><span class="filter-label">Contato</span>${CONTACT_FILTERS.map(([value,label])=>chip('contact',value,label,all.filter(p=>hasContactChannel(p,value)).length)).join('')}</div>
-      <div class="filter-group"><span class="filter-label">Melhor encaixe</span>${FIT_FILTERS.map(([value,label])=>chip('fit',value,label,all.filter(p=>p.recommendedService===value).length)).join('')}</div>
+      ${temEncaixe?`<div class="filter-group"><span class="filter-label">Melhor encaixe</span>${FIT_FILTERS.map(([value,label])=>chip('fit',value,label,all.filter(p=>p.recommendedService===value).length)).join('')}</div>`:''}
       ${prospectFiltersActive()?`<button type="button" class="filter-clear" data-action="clear-prospect-filters">${icon('close',13)} Limpar filtros</button>`:''}
     </div>`;
   }
@@ -1470,25 +1477,22 @@
      primeira mensagem. Em compensação existem duas coisas que a do Google
      quase nunca tem: o segmento pelo nome que as pessoas usam e a cidade.
      A mensagem se apoia nessas duas, e o resto vem do melhor encaixe. */
-  const RECEITA_PITCH = {
-    'Site': segmento =>
-      `o que costuma fazer mais diferença é ter um site próprio, que apareça para quem procura ${segmento} na região e traga o contato direto, sem depender só de indicação e das redes.\n\nConsigo te mostrar como isso ficaria na prática para vocês.`,
-    'Posicionamento digital': segmento =>
-      `o que costuma fazer mais diferença é a forma como vocês aparecem para quem procura ${segmento} por perto: perfil bem montado, presença com constância e um caminho claro para a pessoa chamar no WhatsApp.\n\nSão ajustes que transformam quem já está procurando em conversa de verdade.`,
-    'Automação / IA': segmento =>
-      `as oportunidades que mais aparecem em ${segmento} costumam estar do lado interno: atendimento e follow-up automatizados, integração das ferramentas que já usam e, em alguns casos, um sistema próprio para a rotina de vocês.\n\nSão pontos que reduzem trabalho manual e liberam tempo da equipe para o que gera receita.`
-  };
+  /* --- abordagem do extrator ----------------------------------------------
+     Genérica de propósito. A do Google se apoia em fato observado: se tem
+     site, a nota, quantas avaliações. O cadastro da Receita não traz nada
+     disso, e a versão anterior preenchia o vazio com um "melhor encaixe"
+     deduzido do CNAE — ou seja, escolhia o discurso por um critério que não
+     existia. Puxar para site, posicionamento ou automação sem saber nada da
+     empresa é chute, e chute na primeira mensagem custa o contato.
 
+     Então a mensagem apresenta o leque e deixa a conversa definir o serviço.
+     O que entra nela é só o que está no cadastro: o nome, a cidade e, quando
+     existe, o primeiro nome de quem assina pela empresa. */
   function receitaApproach(p, open, invite) {
-    // O segmento entra s\u00f3 dentro do "quem procura X", que funciona no
-    // singular. Pluralizar exigiria acertar a regra caso a caso ("sal\u00f5es de
-    // beleza", "oficinas mec\u00e2nicas", "bares"), e um plural errado na
-    // primeira frase custa mais do que a frase vale.
-    const segmento = String(p.segment || '').trim() || 'neg\u00f3cios como o de voc\u00eas';
-    const alvo = nameWithPreposition(p.name, 'por');
-    const onde = p.city ? `, a\u00ed em ${p.city},` : '';
-    const pitch = (RECEITA_PITCH[p.recommendedService] || RECEITA_PITCH['Posicionamento digital'])(segmento);
-    return `${open}\nPassei ${alvo}${onde} e trabalho com neg\u00f3cios como o de voc\u00eas. Na pr\u00e1tica, ${pitch}\n\n${invite}`;
+    const alvo = nameWithArticle(p.name);
+    const doAlvo = nameWithPreposition(p.name, 'de');
+    const onde = p.city ? `, aí em ${p.city},` : '';
+    return `${open}\nAnalisei ${alvo}${onde} e trabalho com soluções digitais para negócios como o de vocês: site, presença digital e automação de processos.\n\nA ideia é entender a necessidade de vocês e mostrar o que faz sentido no caso ${doAlvo}.\n\n${invite}`;
   }
 
   /* Contato vindo do extrator: o cadastro traz o nome de quem assina pela
@@ -1683,11 +1687,18 @@
     const base=defaultApproach(p);
     const observation=String(note||'').trim();
     const angle=approachAngle(p);
-    const angleBrief={
-      site:'A empresa não tem site próprio (ou o site está fora do ar). Puxe o discurso para a construção do site e diga que você chegou a montar um protótipo pensando neles e gostaria de apresentar.',
-      automation:'A empresa já tem presença digital estruturada. Puxe o discurso para automação de processos, integração das ferramentas que já usam e a possibilidade de um sistema próprio.',
-      generic:'Mantenha o discurso equilibrado entre presença digital e otimização de processos internos, sem escolher um lado.'
-    }[angle];
+    const daReceita=usaBaseDaReceita(p);
+    /* Contato do extrator: o único fato é o cadastro. Não há site conferido,
+       nota nem avaliação, então o Claude precisa ser proibido de deduzir
+       necessidade — senão ele escreve "vi que vocês precisam de X", que é
+       exatamente o chute que tiramos da tela. */
+    const angleBrief=daReceita
+      ? 'Este contato veio do cadastro público da Receita: não sabemos se a empresa tem site, nem como é a presença digital dela. Não afirme nada sobre isso e não escolha um serviço específico. Apresente o leque (site, presença digital e automação de processos) e deixe a definição para a conversa.'
+      : {
+        site:'A empresa não tem site próprio (ou o site está fora do ar). Puxe o discurso para a construção do site e diga que você chegou a montar um protótipo pensando neles e gostaria de apresentar.',
+        automation:'A empresa já tem presença digital estruturada. Puxe o discurso para automação de processos, integração das ferramentas que já usam e a possibilidade de um sistema próprio.',
+        generic:'Mantenha o discurso equilibrado entre presença digital e otimização de processos internos, sem escolher um lado.'
+      }[angle];
     const instructions=[
       'Reescreva a primeira abordagem de WhatsApp abaixo mantendo a mesma estrutura: abertura com saudação e apresentação, um parágrafo com a oportunidade observada, um parágrafo curto com o ganho para o negócio e um convite final em forma de pergunta.',
       'Português do Brasil, tom profissional e natural, sem emoji, sem exagero e sem prometer resultado.',
@@ -1699,8 +1710,12 @@
     ].filter(Boolean).join(' ');
     try{
       const response=await fetch(CFG.aiProxyUrl||'/.netlify/functions/ai-proxy',{method:'POST',headers:await internalApiHeaders(),body:JSON.stringify({task:'outreach',prompt:instructions,context:{
-        prospect:{nome:p.name,categoria:p.category,cidade:state.prospecting.city,site:p.siteUnreachable?'fora do ar':(p.website||'não identificado'),nota:p.rating||null,avaliacoes:p.userRatingCount||null,melhorEncaixe:p.recommendedService||'',score:p.score,scoreSite:p.siteScore,scoreDigital:p.digitalScore,scoreAutomacao:p.automationScore,sinais:p.reasons||p.scoreReasons||[]},
-        angulo:ANGLE_LABEL[angle],
+        prospect:daReceita
+          // Só o que o cadastro diz. Mandar campo vazio de nota e de site
+          // convida o modelo a preencher a lacuna sozinho.
+          ? {nome:p.name,segmento:p.segment||p.cnae||p.category,cidade:p.city,responsavel:p.contact||null,abertura:p.foundedAt||null,porte:p.size||null,origem:'cadastro público da Receita Federal',sinais:p.reasons||p.scoreReasons||[]}
+          : {nome:p.name,categoria:p.category,cidade:state.prospecting.city,site:p.siteUnreachable?'fora do ar':(p.website||'não identificado'),nota:p.rating||null,avaliacoes:p.userRatingCount||null,melhorEncaixe:p.recommendedService||'',score:p.score,scoreSite:p.siteScore,scoreDigital:p.digitalScore,scoreAutomacao:p.automationScore,sinais:p.reasons||p.scoreReasons||[]},
+        angulo:daReceita?'Soluções digitais em geral':ANGLE_LABEL[angle],
         observacao:observation||null,
         consultor:state.data.settings?.ownerName||'Arthur',
         company:state.data.settings?.company||'Achilles Media'

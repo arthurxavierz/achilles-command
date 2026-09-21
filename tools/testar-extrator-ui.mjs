@@ -58,8 +58,10 @@ const empresa = (i, quality) => ({
   whatsapp: quality === 'mobile_guess' ? `553499123456${i}` : '',
   phoneQuality: quality, phoneQualityLabel: quality,
   email: '', website: '', foundedAt: '2023-04-15', statusText: 'Ativa', size: 'ME',
-  score: 70 + i, band: 'Alta', reasons: ['CNAE 8630503'], siteScore: 80, digitalScore: 78,
-  automationScore: 76, recommendedService: 'Site', rating: 0, userRatingCount: 0
+  score: 70 + i, band: 'Alta', reasons: ['CNAE 8630503'],
+  // Sem siteScore/digitalScore/automationScore: o extrator deixou de deduzir
+  // encaixe de serviço a partir do CNAE, e a tela não pode voltar a mostrar.
+  recommendedService: 'Soluções digitais', rating: 0, userRatingCount: 0
 });
 
 // 'mobile_guess' é o caso real: o cadastro da Receita tem 8 dígitos, então o
@@ -250,7 +252,15 @@ await wait(60);
 const mensagem = doc.getElementById('prospect-approach-text')?.value || '';
 check('modal de abordagem abre', mensagem.length > 50);
 check('mensagem cumprimenta pelo primeiro nome', mensagem.includes('{{saudacao}}, Joao!'), mensagem.slice(0, 60));
-check('mensagem cita o segmento do negócio', mensagem.includes('clínica'));
+check('mensagem diz que analisou', /Analisei/.test(mensagem));
+check('mensagem oferece o leque, sem escolher um serviço',
+  /site, presença digital e automação/i.test(mensagem));
+check('mensagem não afirma necessidade que ninguém verificou',
+  !/(vi que|percebi que|identifiquei) (vocês )?(precisam|não t)/i.test(mensagem));
+check('card não mostra encaixe deduzido',
+  !doc.querySelector('.prospect-card .prospect-service-scores'));
+check('filtro por encaixe some quando não há encaixe',
+  !app.textContent.includes('Melhor encaixe'));
 check('mensagem cita a cidade', mensagem.includes('Uberaba'));
 check('mensagem contrai a preposição com o artigo',
   !/por o|por a|de o|em o/.test(mensagem), mensagem.match(/por [oa] \S+/)?.[0]);

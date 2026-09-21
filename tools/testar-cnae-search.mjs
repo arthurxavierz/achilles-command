@@ -182,6 +182,16 @@ check('segmento vem em linguagem de gente',
   typeof data.results[0].segment === 'string');
 check('cidade sai com caixa apresentável',
   data.results[0].city === 'Uberaba', data.results[0].city);
+check('não sugere encaixe de serviço deduzido do CNAE',
+  data.results.every(r => r.siteScore === undefined && r.digitalScore === undefined && r.automationScore === undefined));
+check('serviço do lead fica genérico',
+  data.results[0].recommendedService === 'Soluções digitais', data.results[0].recommendedService);
+check('score reflete o contato, não um encaixe inventado',
+  data.results.find(r => r.phoneQuality === 'mobile_guess').score >
+  data.results.find(r => r.phoneQuality === 'landline').score);
+check('os motivos citam o que o cadastro diz',
+  data.results[0].reasons.some(m => /CNAE/.test(m)) && data.results[0].reasons.some(m => /celular|fixo/i.test(m)),
+  JSON.stringify(data.results[0].reasons));
 check('a consulta pede o responsável ao banco',
   new URL(ultimaChamada('cnpj_busca')).searchParams.get('select').includes('responsavel'));
 check('a resposta informa a competência da base', data.base?.competencia === '2026-09');

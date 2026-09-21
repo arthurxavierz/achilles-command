@@ -108,74 +108,63 @@ function phoneInfo(phones = []) {
    Sem nota e sem avaliações do Google, os sinais disponíveis aqui são outros:
    porte, tempo de casa, canal de contato e o encaixe típico do CNAE. É uma
    estimativa comercial de encaixe, não um retrato da empresa. */
-const SERVICE_CNAE_HINTS = [
-  { re: /^(86|87|75)/, site: 82, digital: 78, automation: 76 }, // saúde e veterinária
-  { re: /^(56|55)/,    site: 78, digital: 82, automation: 66 }, // alimentação e hospedagem
-  { re: /^(96|93)/,    site: 76, digital: 80, automation: 64 }, // beleza, estética, esporte
-  { re: /^(45|95|43)/, site: 80, digital: 66, automation: 72 }, // oficinas, reparos, obras
-  { re: /^(68|69|70|71|73|74)/, site: 74, digital: 70, automation: 80 }, // imobiliário e serviços profissionais
-  { re: /^(85)/,       site: 76, digital: 74, automation: 70 }, // educação
-  { re: /^(47|46)/,    site: 72, digital: 76, automation: 62 }  // comércio
-];
-
-function serviceBaseline(cnae = '') {
-  const hit = SERVICE_CNAE_HINTS.find(h => h.re.test(String(cnae)));
-  return hit ? { site: hit.site, digital: hit.digital, automation: hit.automation }
-             : { site: 70, digital: 68, automation: 62 };
-}
-
 function yearsSince(isoDate) {
   const t = Date.parse(isoDate);
   if (!Number.isFinite(t)) return null;
   return (Date.now() - t) / (365.25 * 24 * 3600 * 1000);
 }
 
+/* --- score ---------------------------------------------------------------
+   Aqui não existe recomendação de serviço, e isso é proposital. A versão
+   anterior dava nota para Site, Posicionamento e Automação a partir do
+   prefixo do CNAE, da idade e do porte — ou seja, chutava o encaixe sem
+   olhar nada da empresa. Um número com aparência de critério, sem critério
+   por trás, é pior do que número nenhum: leva a decidir por ele.
+
+   O que sobra é o que o cadastro realmente diz, e serve só para ordenar a
+   lista: dá para falar com essa empresa hoje, e ela tem cara de negócio que
+   a Achilles atende. Quem decide o serviço é a conversa. */
 function scoreCompany(p) {
-  const base = serviceBaseline(p.cnaeCode);
-  let { site: siteScore, digital: digitalScore, automation: automationScore } = base;
+  let score = 50;
+  const motivos = [];
 
-  // Empresa nova ainda está montando presença; empresa consolidada tem
-  // operação para organizar. Os dois casos interessam, por motivos diferentes.
+  motivos.push(p.cnae ? `CNAE ${p.cnaeCode} · ${p.cnae}` : 'CNAE não informado');
+
+  // Canal de contato é o que mais pesa: lead sem como falar não é lead.
+  if (p.phoneQuality === 'mobile') score += 20;
+  else if (p.phoneQuality === 'mobile_guess') score += 16;
+  else if (p.phoneQuality === 'landline') score -= 10;
+  else score -= 25;
+  motivos.push(String(p.phoneQualityLabel || '').toLowerCase());
+
+  if (p.email) { score += 6; motivos.push('e-mail no cadastro da Receita'); }
+
   const age = yearsSince(p.foundedAt);
-  if (age != null && age < 2) { siteScore += 8; digitalScore += 6; automationScore -= 6; }
-  if (age != null && age >= 8) { automationScore += 8; siteScore -= 4; }
+  if (age != null) {
+    // Empresa nova costuma estar montando presença agora, o que a torna uma
+    // conversa mais fácil — não uma empresa melhor.
+    if (age < 2) { score += 8; motivos.push('aberta há menos de 2 anos'); }
+    else if (age < 6) { score += 4; motivos.push(`cerca de ${Math.floor(age)} anos de atividade`); }
+    else motivos.push(`cerca de ${Math.floor(age)} anos de atividade`);
+  }
 
-  if (p.size === 'Demais') automationScore += 8;
-  if (p.size === 'ME' || p.mei) { automationScore -= 8; siteScore += 4; }
-  if (p.email) digitalScore += 3;
+  // ME e EPP são o porte que a Achilles atende; "Demais" costuma ter
+  // fornecedor próprio e processo de compra mais longo.
+  if (p.size === 'ME' || p.size === 'EPP' || p.mei) { score += 5; }
+  else if (p.size === 'Demais') { score -= 5; }
+  if (p.size) motivos.push(`porte ${p.size}`);
 
-  const cap = v => clamp(Math.round(v), 0, 100);
-  siteScore = cap(siteScore); digitalScore = cap(digitalScore); automationScore = cap(automationScore);
+  if (p.statusText && p.statusText !== 'Ativa') score -= 30;
 
-  const services = [
-    ['Site', siteScore],
-    ['Posicionamento digital', digitalScore],
-    ['Automação / IA', automationScore]
-  ].sort((a, b) => b[1] - a[1]);
-
-  let score = Math.round(services[0][1] * 0.62 + services[1][1] * 0.23 + services[2][1] * 0.15);
-  if (p.phoneQuality === 'mobile') score += 6;
-  else if (p.phoneQuality === 'mobile_guess') score += 4;
-  else if (p.phoneQuality === 'landline') score -= 6;
-  else score -= 14;
-  if (p.statusText && p.statusText !== 'Ativa') score -= 20;
-  score = clamp(score, 0, 100);
-
-  const reasons = [];
-  reasons.push(p.cnae ? `CNAE ${p.cnaeCode} · ${p.cnae}` : 'CNAE não informado');
-  if (age != null) reasons.push(age < 2 ? 'empresa aberta há menos de 2 anos' : `cerca de ${Math.floor(age)} anos de atividade`);
-  reasons.push(p.phoneQualityLabel.toLowerCase());
-  if (p.email) reasons.push('e-mail no cadastro da Receita');
-  if (p.size) reasons.push(`porte ${p.size}`);
+  score = clamp(Math.round(score), 0, 100);
 
   return {
     score,
     band: score >= 85 ? 'Muito alta' : score >= 70 ? 'Alta' : score >= 50 ? 'Média' : 'Baixa',
-    reasons,
-    siteScore,
-    digitalScore,
-    automationScore,
-    recommendedService: services[0][0]
+    reasons: motivos,
+    // Sem encaixe sugerido: o que a empresa precisa sai da conversa, não do
+    // CNAE. O CRM usa este rótulo genérico como serviço inicial do lead.
+    recommendedService: 'Soluções digitais'
   };
 }
 
