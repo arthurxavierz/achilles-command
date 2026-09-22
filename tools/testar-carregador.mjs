@@ -1,8 +1,8 @@
 /* ==========================================================================
-   Teste do carregador da base de CNPJ — `node tools/testar-carregador.mjs`
+   Teste do carregador da base de CNPJ, `node tools/testar-carregador.mjs`
 
    Exercita o caminho `--carregar` inteiro sem tocar num Supabase real: finge
-   o PostgREST e confere o que seria gravado — formato das linhas, upsert em
+   o PostgREST e confere o que seria gravado, formato das linhas, upsert em
    vez de insert, nova tentativa depois de um erro, e se algum campo escapou
    do schema.
 

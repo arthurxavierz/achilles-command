@@ -1,7 +1,7 @@
 /* --- o 9º dígito ----------------------------------------------------------
    O cadastro da Receita guarda só 8 dígitos de telefone. Conferido no arquivo
    de setembro/2026: 910.396 telefones de 8 dígitos e ZERO de 9. O nono dígito
-   do celular não está na fonte — e trocar de fornecedor não resolve, porque
+   do celular não está na fonte, e trocar de fornecedor não resolve, porque
    as APIs pagas leem esta mesma base e devolvem o mesmo número truncado.
 
    Dá para inferir pelo primeiro dígito: na numeração antiga, celular começava

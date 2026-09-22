@@ -1,11 +1,11 @@
 /* ==========================================================================
-   Achilles Command — camada de design
+   Achilles Command, camada de design
    Identidade: ouro metálico sobre preto quente, grotesk apertada,
    micro-labels monoespaçadas, texturas de grade e poeira dourada.
    ========================================================================== */
 
 :root {
-  /* superfícies — preto quente, nunca esverdeado */
+  /* superfícies, preto quente, nunca esverdeado */
   --bg: #090807;
   --bg-soft: #0e0d0b;
   --panel: #141210;
@@ -18,13 +18,13 @@
   --border-soft: rgba(245, 241, 230, 0.05);
   --border-strong: rgba(201, 162, 65, 0.34);
 
-  /* texto — creme, não branco puro */
+  /* texto, creme, não branco puro */
   --text: #f5f1e6;
   --text-soft: #b9b2a3;
   --muted: #837b6c;
   --faint: #5d564b;
 
-  /* ouro — rampa da marca */
+  /* ouro, rampa da marca */
   --gold: #c9a241;
   --gold-light: #e3c877;
   --gold-pale: #f4e4b8;
@@ -35,7 +35,7 @@
   --gold-grad: linear-gradient(165deg, #e3c877 0%, #c9a241 48%, #a8842f 100%);
   --gold-glow: 0 14px 38px rgba(201, 162, 65, 0.18);
 
-  /* semânticas — âmbar quente para aviso, para não competir com o ouro */
+  /* semânticas, âmbar quente para aviso, para não competir com o ouro */
   --success: #5fc98b;
   --warning: #e08a3c;
   --danger: #e5674e;
@@ -234,7 +234,7 @@ h1, h2, h3, h4,
 .content { padding: 28px 30px 60px; max-width: 1680px; margin: 0 auto; }
 
 /* ==========================================================================
-   Hero — grade + poeira dourada, como no site
+   Hero, grade + poeira dourada, como no site
    ========================================================================== */
 
 .hero {
@@ -721,7 +721,7 @@ h1, h2, h3, h4,
 @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 /* ==========================================================================
-   Login — vitrine com grade e poeira dourada
+   Login, vitrine com grade e poeira dourada
    ========================================================================== */
 
 .login-page { min-height: 100vh; display: grid; grid-template-columns: 1.1fr .9fr; }
@@ -1047,7 +1047,7 @@ h1, h2, h3, h4,
   .extractor-preview .toolbar-right .btn { flex: 1; }
 }
 
-/* filtros da captação — chips de contato e de encaixe comercial */
+/* filtros da captação, chips de contato e de encaixe comercial */
 .prospect-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding: 13px 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); }
 .filter-group { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
 .filter-label {
@@ -1101,7 +1101,7 @@ h1, h2, h3, h4,
 @media (max-width: 640px) { .prospect-service-scores { grid-template-columns: repeat(3, 1fr); } .prospect-service-scores .recommended { grid-column: 1 / -1; } }
 
 /* ==========================================================================
-   Mobile — captação, disparo e CRM no celular
+   Mobile, captação, disparo e CRM no celular
 
    O app já era fluido, mas três coisas o tornavam inoperante em toque:
    o Kanban dependia de drag-and-drop, a lista de conversas era escondida

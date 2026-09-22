@@ -1,10 +1,10 @@
 /* ==========================================================================
-   Achilles Command — nomes vindos do cadastro da Receita
+   Achilles Command, nomes vindos do cadastro da Receita
 
    A Receita entrega tudo em caixa alta e sem acento: "RESTAURANTE SABOR
    MINEIRO LTDA", "MARIA DA CONCEICAO SILVA". Jogar isso direto no card e,
    pior, no meio de uma mensagem de WhatsApp, entrega na hora que o contato
-   saiu de um banco de dados — e é o tipo de detalhe que faz a abordagem
+   saiu de um banco de dados, e é o tipo de detalhe que faz a abordagem
    parecer disparo automático.
 
    Aqui o nome vira algo que uma pessoa escreveria. O acento não tem como
@@ -41,7 +41,7 @@ export function tituloCase(valor = '') {
 
 /* Sufixos societários no fim da razão social. Saem porque ninguém fala
    "a Padaria Central Ltda" numa conversa. */
-const SUFIXOS = /\s*[-–,]?\s*(ltda\.?|me|mei|epp|eireli|s\/?a\.?|s\.a\.?|sociedade\s+simples|soc\.?\s+simples|ss|& cia\.?|cia\.?\s+ltda\.?|cia\.?|em\s+recupera[çc][ãa]o\s+judicial)\s*$/i;
+const SUFIXOS = /\s*[-,]?\s*(ltda\.?|me|mei|epp|eireli|s\/?a\.?|s\.a\.?|sociedade\s+simples|soc\.?\s+simples|ss|& cia\.?|cia\.?\s+ltda\.?|cia\.?|em\s+recupera[çc][ãa]o\s+judicial)\s*$/i;
 
 export function nomeApresentavel(valor = '') {
   let nome = String(valor).trim();

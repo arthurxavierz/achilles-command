@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Teste da prévia do extrator — `node tools/testar-previa.mjs`
+   Teste da prévia do extrator, `node tools/testar-previa.mjs`
 
    Precisa do jsdom uma única vez:  npm install jsdom
 

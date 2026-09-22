@@ -5,7 +5,7 @@
 -- pela empresa, e num negócio pequeno costuma ser quem atende o telefone.
 --
 -- É uma aposta, não um fato: o sócio-administrador pode não ser quem atende,
--- e o cadastro pode estar velho. Por isso o nome só abre a conversa — nada é
+-- e o cadastro pode estar velho. Por isso o nome só abre a conversa, nada é
 -- afirmado sobre a pessoa, e nenhum outro dado dela é guardado.
 --
 -- De onde vem:

@@ -1,10 +1,10 @@
 /* ==========================================================================
-   Achilles Command — extrator de empresas por CNAE
+   Achilles Command, extrator de empresas por CNAE
 
    Análogo ao prospect-search.mjs (Google Places), mas partindo do cadastro
    da Receita Federal em vez do mapa: você escolhe CNAE, UF, cidade e período
    de abertura, e recebe empresas já no mesmo formato de prospect que a aba
-   de Captação usa — assim card, abordagem, CRM e a extensão Prospecta
+   de Captação usa, assim card, abordagem, CRM e a extensão Prospecta
    continuam funcionando sem mudança.
 
    Dois provedores, escolhidos por CNAE_PROVIDER:
@@ -68,7 +68,7 @@ async function fetchJson(url, options = {}, timeout = REQUEST_TIMEOUT) {
 /* --- municípios ----------------------------------------------------------
    O CNPJá filtra cidade por código IBGE, não por nome. A lista de uma UF tem
    poucos KB e não muda de mês para mês, então fica em memória enquanto a
-   Function estiver quente — evita uma chamada ao IBGE por busca. */
+   Function estiver quente, evita uma chamada ao IBGE por busca. */
 const municipalityCache = new Map();
 
 async function municipalitiesOf(uf) {
@@ -117,7 +117,7 @@ function yearsSince(isoDate) {
 /* --- score ---------------------------------------------------------------
    Aqui não existe recomendação de serviço, e isso é proposital. A versão
    anterior dava nota para Site, Posicionamento e Automação a partir do
-   prefixo do CNAE, da idade e do porte — ou seja, chutava o encaixe sem
+   prefixo do CNAE, da idade e do porte, ou seja, chutava o encaixe sem
    olhar nada da empresa. Um número com aparência de critério, sem critério
    por trás, é pior do que número nenhum: leva a decidir por ele.
 
@@ -142,7 +142,7 @@ function scoreCompany(p) {
   const age = yearsSince(p.foundedAt);
   if (age != null) {
     // Empresa nova costuma estar montando presença agora, o que a torna uma
-    // conversa mais fácil — não uma empresa melhor.
+    // conversa mais fácil, não uma empresa melhor.
     if (age < 2) { score += 8; motivos.push('aberta há menos de 2 anos'); }
     else if (age < 6) { score += 4; motivos.push(`cerca de ${Math.floor(age)} anos de atividade`); }
     else motivos.push(`cerca de ${Math.floor(age)} anos de atividade`);
@@ -249,7 +249,7 @@ function supabaseHeaders(request) {
 }
 
 /* PostgREST quer os valores de um `in` entre parênteses, e texto com vírgula
-   ou espaço precisa de aspas — nome de município tem os dois. */
+   ou espaço precisa de aspas, nome de município tem os dois. */
 const listaPostgrest = valores => `(${valores.map(v => `"${String(v).replace(/"/g, '')}"`).join(',')})`;
 
 /* O município no banco veio da Receita: maiúsculo e sem acento. O que a
@@ -259,7 +259,7 @@ const municipioReceita = v => String(v || '')
   .toUpperCase().trim();
 
 /* O que foi realmente carregado. Sem isso, pedir um CNAE fora do recorte
-   devolveria "nenhum resultado" — que parece filtro ruim, mas é base
+   devolveria "nenhum resultado", que parece filtro ruim, mas é base
    incompleta. São coisas diferentes e o aviso precisa dizer qual é. */
 async function escopoDaBase(base, headers) {
   const url = `${base}/rest/v1/cnpj_base_cargas?select=competencia,ufs,cnaes,total_linhas,concluida_em`
@@ -403,13 +403,13 @@ function mapRow(row) {
 
 const PORTE = { 1: 'ME', 3: 'EPP', 5: 'Demais' };
 
-/* A base guarda o código do CNAE, não a descrição — repetir o texto em cada
+/* A base guarda o código do CNAE, não a descrição, repetir o texto em cada
    uma das centenas de milhares de linhas seria desperdício. A descrição vem
    do mesmo assets/cnae.json que a tela usa para sugerir. */
 const CNAE_TEXTO = new Map();
 /* Como as pessoas chamam o negócio: "restaurante", "salão de beleza",
    "oficina mecânica". A descrição oficial é jurídica demais para entrar numa
-   mensagem — ninguém escreve "quem procura restaurantes e similares". */
+   mensagem, ninguém escreve "quem procura restaurantes e similares". */
 const CNAE_SEGMENTO = new Map();
 let catalogoCarregado = false;
 
@@ -577,8 +577,8 @@ export default async (request) => {
       avisos,
       results,
       note: provedor === 'supabase'
-        ? `Cadastro público da Receita Federal, competência ${base?.competencia || '—'}, na sua própria base. Telefone de 8 dígitos começando com 6 a 9 é tratado como provável celular, com o 9º dígito reconstruído — é inferência, não confirmação de WhatsApp. Revise antes de importar: nada é disparado por esta busca.`
-        : 'Cadastro público da Receita Federal via CNPJá. O telefone vem com os mesmos 8 dígitos da base oficial. Revise antes de importar — nada é disparado por esta busca.'
+        ? `Cadastro público da Receita Federal, competência ${base?.competencia || 'não informado'}, na sua própria base. Telefone de 8 dígitos começando com 6 a 9 é tratado como provável celular, com o 9º dígito reconstruído, é inferência, não confirmação de WhatsApp. Revise antes de importar: nada é disparado por esta busca.`
+        : 'Cadastro público da Receita Federal via CNPJá. O telefone vem com os mesmos 8 dígitos da base oficial. Revise antes de importar, nada é disparado por esta busca.'
     });
   } catch (error) {
     const message = error?.name === 'AbortError'

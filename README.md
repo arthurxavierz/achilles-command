@@ -6,7 +6,7 @@ Central interna da Achilles Media para comercial, operação e IA.
 
 - Dashboard, CRM/Kanban, conversas, campanhas, propostas, projetos e tarefas.
 - **Captação nativa de empresas** dentro do próprio Command, por duas origens: Google Maps (segmento + cidade + raio) e **extrator por CNAE**, que busca numa cópia própria do cadastro da Receita, hospedada no seu Supabase e sem custo por consulta.
-- Prévia revisável no extrator, listas nomeadas e importação manual — importar nunca dispara mensagem.
+- Prévia revisável no extrator, listas nomeadas e importação manual, importar nunca dispara mensagem.
 - Mapa dos resultados, telefone/WhatsApp/e-mail/site quando publicados, CSV e score de oportunidade.
 - Enriquecimento opcional pelo site público da empresa para tentar localizar e-mail, telefone e redes sociais.
 - Editor de abordagem e abertura do WhatsApp com a mensagem preenchida; o clique final continua humano.

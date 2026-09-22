@@ -196,7 +196,7 @@ check('a tela não promete WhatsApp confirmado',
 check('o fixo é marcado como fixo', app.textContent.includes('Fixo · não abre WhatsApp'));
 check('CNPJ formatado na tabela', app.textContent.includes('11.222.333/0001-01'));
 check('botão importar liberado', !doc.querySelector('[data-action="extractor-import"]').disabled);
-check('aviso de que nada é enviado', app.textContent.includes('importar não envia mensagem nenhuma'));
+check('aviso de que nada é enviado', app.textContent.includes('não envia mensagem nenhuma'));
 
 // aviso de estado fora da carga precisa aparecer para o usuário
 extractorResponse.avisos = ['SP não está na base carregada (hoje ela tem MG, GO, DF), então esses estados vieram vazios.'];
@@ -252,16 +252,21 @@ await wait(60);
 const mensagem = doc.getElementById('prospect-approach-text')?.value || '';
 check('modal de abordagem abre', mensagem.length > 50);
 check('mensagem cumprimenta pelo primeiro nome', mensagem.includes('{{saudacao}}, Joao!'), mensagem.slice(0, 60));
-check('mensagem diz que analisou', /Analisei/.test(mensagem));
-check('mensagem oferece o leque, sem escolher um serviço',
-  /site, presença digital e automação/i.test(mensagem));
+check('cumprimento pergunta pela pessoa', mensagem.includes('Tudo bem com você?'));
+check('primeira frase é só cumprimento, sem apresentação junto',
+  mensagem.startsWith('{{saudacao}}, Joao! Tudo bem com você?'), mensagem.slice(0, 45));
+check('cita o leque de serviços', /sistemas e automações até presença digital/.test(mensagem));
+check('fecha dizendo o que quer entender',
+  mensagem.includes('entender a necessidade de vocês'));
+check('mensagem diz que analisou', /Analisando/.test(mensagem));
 check('mensagem não afirma necessidade que ninguém verificou',
   !/(vi que|percebi que|identifiquei) (vocês )?(precisam|não t)/i.test(mensagem));
 check('card não mostra encaixe deduzido',
   !doc.querySelector('.prospect-card .prospect-service-scores'));
 check('filtro por encaixe some quando não há encaixe',
   !app.textContent.includes('Melhor encaixe'));
-check('mensagem cita a cidade', mensagem.includes('Uberaba'));
+check('nome da empresa vem com o artigo certo',
+  /Analisando a Clínica \d/.test(mensagem), mensagem.match(/Analisando[^,]*/)?.[0]);
 check('mensagem contrai a preposição com o artigo',
   !/por o|por a|de o|em o/.test(mensagem), mensagem.match(/por [oa] \S+/)?.[0]);
 check('mensagem não afirma que a empresa não tem site',

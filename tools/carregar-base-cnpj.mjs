@@ -6,7 +6,7 @@
    o extrator por CNAE busca na sua própria base, sem custo por consulta.
 
    Os arquivos somam cerca de 5 GB compactados. Cada um é baixado para uma
-   pasta de cache, lido, e apagado em seguida — então o pico de disco é o
+   pasta de cache, lido, e apagado em seguida, então o pico de disco é o
    tamanho do maior arquivo, 2,1 GB, e não a soma.
 
    O download é retomável. Se a conexão cair no meio (e numa baixada dessas
@@ -156,7 +156,7 @@ function separarCampos(linha) {
 /* --- o problema do 9º dígito ---------------------------------------------
    O campo de telefone da Receita tem 8 dígitos e ponto final. Medindo o
    arquivo de setembro/2026: 910.396 telefones de 8 dígitos e ZERO de 9. O
-   nono dígito dos celulares simplesmente não está na base — e não adianta
+   nono dígito dos celulares simplesmente não está na base, e não adianta
    trocar de fornecedor, porque as APIs pagas leem esta mesma base e devolvem
    os mesmos 8 dígitos.
 
@@ -168,7 +168,7 @@ function separarCampos(linha) {
    Isso é uma inferência com margem de erro, não um fato: número reciclado,
    cadastro desatualizado ou linha desativada continuam parecendo celular
    aqui. Por isso o tipo se chama `mobile_provavel` e a interface nunca
-   promete WhatsApp — promete candidato. */
+   promete WhatsApp, promete candidato. */
 function montarTelefone(ddd, numero) {
   const d = String(ddd || '').replace(/\D/g, '');
   const n = String(numero || '').replace(/\D/g, '');
@@ -214,7 +214,7 @@ const limpar = v => {
    Agora cada arquivo é baixado para uma pasta de cache, e uma queda custa só
    o que faltava: a requisição seguinte pede `Range: bytes=<o que já tenho>-`
    e continua de onde parou. Se o arquivo já estiver inteiro no cache, nem
-   baixa de novo — o que torna barato repetir a carga depois de um erro.
+   baixa de novo, o que torna barato repetir a carga depois de um erro.
 
    Por padrão cada arquivo é apagado assim que é processado, então o pico de
    disco é o tamanho do maior deles. Com --manter o cache fica para a próxima
@@ -306,7 +306,7 @@ async function* linhasDoZip(caminhoLocal) {
 
   let resto = '';
   // latin1 é byte a byte, então cortar no meio de um pedaço não corrompe
-  // caractere acentuado — o que aconteceria com utf8.
+  // caractere acentuado, o que aconteceria com utf8.
   for await (const bloco of inflate) {
     const texto = resto + bloco.toString('latin1');
     const linhas = texto.split('\n');
@@ -381,7 +381,7 @@ function descartar(cfg, caminho) {
 
    Isto é uma aposta, não um fato: o sócio-administrador pode não ser quem
    atende o WhatsApp, e o cadastro pode estar velho. Por isso guardamos só o
-   nome — nenhum outro dado da pessoa entra no banco — e a interface nunca
+   nome, nenhum outro dado da pessoa entra no banco, e a interface nunca
    afirma nada sobre ele. */
 
 /* Qualificação do sócio na Receita. Quanto menor o número aqui, mais provável
@@ -730,7 +730,7 @@ console.log(`Espaço estimado no banco: ~${mb(bytesEstimados)} MB de dados + ín
 
 if (parcial) {
   /* Projetar daqui é traiçoeiro, e o jeito antigo errou feio: a proporção de
-     bytes dizia 830 mil para MG/GO/DF, e a carga real deu 1,8 milhão — mais
+     bytes dizia 830 mil para MG/GO/DF, e a carga real deu 1,8 milhão, mais
      que o dobro.
 
      O motivo é o arquivo 0. Ele não é só maior em bytes, é muito mais denso
@@ -747,8 +747,8 @@ if (parcial) {
      2026-09). Não é palpite: são as 1.797.165 empresas daquela carga,
      divididas por arquivo.
 
-     A variação entre arquivos é enorme — o 1 trouxe 52 mil e o 8 trouxe 148
-     mil — e é isso que torna traiçoeiro projetar de um arquivo só. */
+     A variação entre arquivos é enorme, o 1 trouxe 52 mil e o 8 trouxe 148
+     mil, e é isso que torna traiçoeiro projetar de um arquivo só. */
   const FATIA = [0.440, 0.029, 0.074, 0.081, 0.040, 0.078, 0.069, 0.047, 0.083, 0.059];
   const fatia = cfg.arquivos.reduce((soma, i) => soma + FATIA[i], 0);
   const estimado = aceitas / fatia;

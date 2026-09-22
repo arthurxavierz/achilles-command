@@ -597,7 +597,7 @@
     ['SP','São Paulo'],['SE','Sergipe'],['TO','Tocantins']
   ];
 
-  /* O cadastro da Receita guarda só 8 dígitos de telefone — o 9º dígito do
+  /* O cadastro da Receita guarda só 8 dígitos de telefone: o 9º dígito do
      celular não existe na fonte, e as APIs pagas devolvem o mesmo número
      truncado. Um número começando com 6 a 9 era celular na numeração antiga,
      então dá para reconstruir; mas é inferência, e o rótulo diz isso. */
@@ -633,8 +633,8 @@
   }
 
   /* A descrição oficial é jurídica: "clínica" aparece em 2 das 1.332
-     subclasses e "pet shop" em nenhuma. Por isso a busca olha três coisas —
-     o código, a descrição e os apelidos populares gravados no catálogo — e
+     subclasses e "pet shop" em nenhuma. Por isso a busca olha três coisas:
+     o código, a descrição e os apelidos populares gravados no catálogo, e
      ainda aceita termos soltos ("oficina moto"), exigindo que todos apareçam
      em algum desses campos. */
   function searchCnae(term) {
@@ -669,7 +669,7 @@
 
   /* --- municípios ----------------------------------------------------------
      Sugestão vem do IBGE, que permite chamada direta do navegador. Se o IBGE
-     não responder, o campo continua aceitando texto livre — quem resolve o
+     não responder, o campo continua aceitando texto livre, quem resolve o
      nome para código é a Function, que consulta o IBGE pelo servidor. */
   const municipalityCache = new Map();
 
@@ -707,7 +707,7 @@
     const withPhone = selected.filter(r => r.phoneQuality !== 'none').length;
     return `
       <section class="card prospect-search-panel extractor-panel">
-        <div class="card-head"><div><h3 class="card-title">Extrator por CNAE</h3><p class="card-subtitle">Monte listas a partir do cadastro público da Receita Federal. A busca só mostra a prévia — nada é enviado.</p></div><span class="tag gold">Receita Federal</span></div>
+        <div class="card-head"><div><h3 class="card-title">Extrator por CNAE</h3><p class="card-subtitle">Monte listas a partir do cadastro público da Receita Federal. A busca só mostra a prévia e nada é enviado.</p></div><span class="tag gold">Receita Federal</span></div>
 
         <div class="extractor-form">
           <div class="form-group span-2">
@@ -755,7 +755,7 @@
           <button class="btn btn-primary" id="extractor-run" ${x.loading||!x.cnaes.length||!x.states.length?'disabled':''}>${x.loading?icon('refresh'):icon('search')} ${x.loading?'Extraindo...':'Buscar empresas'}</button>
           ${x.results.length?`<button class="btn btn-ghost btn-sm" data-action="extractor-reset">${icon('close',13)} Limpar prévia</button>`:''}
         </div>
-        <div class="prospect-help">O cadastro da Receita guarda o telefone com <strong>8 dígitos</strong>: o 9º dígito do celular não existe na fonte. Quando o número começa com 6 a 9, ele era celular na numeração antiga e o 9 é recolocado na frente — é uma <strong>inferência</strong>, não confirmação de que existe WhatsApp ali. Confirme antes de tratar como contato certo.</div>
+        <div class="prospect-help">O cadastro da Receita guarda o telefone com <strong>8 dígitos</strong>: o 9º dígito do celular não existe na fonte. Quando o número começa com 6 a 9, ele era celular na numeração antiga e o 9 é recolocado na frente. É uma <strong>inferência</strong>, não confirmação de que existe WhatsApp ali. Confirme antes de tratar como contato certo.</div>
       </section>
 
       ${extractorBaseBar()}
@@ -787,7 +787,7 @@
     if (!x.base) return avisos;
     const { competencia, ufs = [], total = 0 } = x.base;
     return `<div class="extractor-base-bar">
-      <span>${icon('database',13)} Base própria · <strong>${escapeHtml((ufs || []).join(', ') || '—')}</strong> · ${Number(total).toLocaleString('pt-BR')} empresas · dados de ${escapeHtml(competencia || '—')}</span>
+      <span>${icon('database',13)} Base própria · <strong>${escapeHtml((ufs || []).join(', ') || 'não informado')}</strong> · ${Number(total).toLocaleString('pt-BR')} empresas · dados de ${escapeHtml(competencia || 'não informado')}</span>
     </div>${avisos}`;
   }
 
@@ -836,7 +836,7 @@
       <div class="form-group"><label class="label" for="extractor-list-name">Nome da lista</label><input class="input" id="extractor-list-name" value="${escapeHtml(x.listName)}" placeholder="${escapeHtml(suggestedListName())}" maxlength="80" /></div>
       <div class="extractor-import-info">
         <strong>${selected.length} ${selected.length===1?'empresa selecionada':'empresas selecionadas'}</strong>
-        <span class="text-muted">${withPhone} com telefone. Só essas entram na captação — importar não envia mensagem nenhuma.</span>
+        <span class="text-muted">${withPhone} com telefone. Só essas entram na captação. Importar não envia mensagem nenhuma.</span>
       </div>
       <button class="btn btn-primary" data-action="extractor-import" ${ready?'':'disabled'} title="${ready?'':'Selecione pelo menos uma empresa com telefone'}">${icon('upload')} Importar para a captação</button>
     </div>`;
@@ -1127,7 +1127,7 @@
   }
 
   /* Atualiza só os números que dependem da seleção. Evita redesenhar a tabela
-     inteira — e perder a rolagem — a cada caixa marcada. */
+     inteira (e perder a rolagem) a cada caixa marcada. */
   function updateExtractorCounts() {
     const x = state.extractor;
     const selected = x.results.filter(r => x.selected.includes(r.id));
@@ -1137,7 +1137,7 @@
       const strong = bar.querySelector('.extractor-import-info strong');
       const muted = bar.querySelector('.extractor-import-info .text-muted');
       if (strong) strong.textContent = `${selected.length} ${selected.length===1?'empresa selecionada':'empresas selecionadas'}`;
-      if (muted) muted.textContent = `${withPhone} com telefone. Só essas entram na captação — importar não envia mensagem nenhuma.`;
+      if (muted) muted.textContent = `${withPhone} com telefone. Só essas entram na captação. Importar não envia mensagem nenhuma.`;
       const btn = bar.querySelector('[data-action="extractor-import"]');
       if (btn) btn.disabled = withPhone === 0;
     }
@@ -1148,7 +1148,7 @@
   }
 
   /* Campo de texto com sugestões. Ao escolher, a janela fecha e o campo
-     esvazia — marcar cinco CNAEs seguidos não deve exigir fechar a lista
+     esvazia, marcar cinco CNAEs seguidos não deve exigir fechar a lista
      à mão cinco vezes. */
   function bindSuggestField(inputId, boxId, provider, minLength = 2) {
     const input = document.getElementById(inputId);
@@ -1195,7 +1195,7 @@
 
   /* Ponte para a extensão Achilles Prospecta. Publica a lista visível como
      JSON dentro da própria página; a extensão lê e monta a fila. É só leitura
-     — quem altera o estado continua sendo o Command, via os eventos abaixo.
+     quem altera o estado continua sendo o Command, via os eventos abaixo.
      A mensagem sai com {{saudacao}} ainda por resolver, de propósito: a
      extensão resolve na hora de preencher, não na hora de montar a fila. */
   function prospectBridge(list) {
@@ -1350,7 +1350,7 @@
     return true;
   }
 
-  /* Ordem comercial: oportunidade primeiro, contato como desempate — um score
+  /* Ordem comercial: oportunidade primeiro, contato como desempate, um score
      alto sem telefone vale menos na prática do que um contatável no WhatsApp. */
   function visibleProspects() {
     return (state.prospecting.results||[])
@@ -1394,7 +1394,7 @@
      entram quando existe um motivo concreto para especializar o discurso.
 
      {{saudacao}} fica como variável e só é resolvida na hora de abrir o
-     WhatsApp — mensagem preparada de manhã não pode chegar dando bom dia
+     WhatsApp, mensagem preparada de manhã não pode chegar dando bom dia
      às oito da noite. */
 
   const AUTOMATION_GAP = 8; // vantagem mínima para o ângulo de automação dominar
@@ -1407,7 +1407,7 @@
   }
 
   /* Artigo deduzido do primeiro termo do nome ("a Clínica", "o Consultório").
-     A lista resolve o que a terminação erra — "Restaurante" e "Lanchonete"
+     A lista resolve o que a terminação erra, "Restaurante" e "Lanchonete"
      terminam igual e têm gêneros diferentes. Quando nada bate, a frase segue
      sem artigo, em vez de arriscar uma concordância errada logo na primeira
      mensagem. */
@@ -1473,7 +1473,7 @@
 
   /* --- abordagem do extrator ----------------------------------------------
      A do Google se apoia no que dá para observar: nota, avaliações, se tem
-     site. Aqui nada disso existe — e inventar observação seria mentir logo na
+     site. Aqui nada disso existe, e inventar observação seria mentir logo na
      primeira mensagem. Em compensação existem duas coisas que a do Google
      quase nunca tem: o segmento pelo nome que as pessoas usam e a cidade.
      A mensagem se apoia nessas duas, e o resto vem do melhor encaixe. */
@@ -1481,7 +1481,7 @@
      Genérica de propósito. A do Google se apoia em fato observado: se tem
      site, a nota, quantas avaliações. O cadastro da Receita não traz nada
      disso, e a versão anterior preenchia o vazio com um "melhor encaixe"
-     deduzido do CNAE — ou seja, escolhia o discurso por um critério que não
+     deduzido do CNAE, ou seja, escolhia o discurso por um critério que não
      existia. Puxar para site, posicionamento ou automação sem saber nada da
      empresa é chute, e chute na primeira mensagem custa o contato.
 
@@ -1489,14 +1489,23 @@
      O que entra nela é só o que está no cadastro: o nome, a cidade e, quando
      existe, o primeiro nome de quem assina pela empresa. */
   function receitaApproach(p, open, invite) {
+    const consultor = state.data.settings?.ownerName || 'Arthur';
+    const agencia = state.data.settings?.company || 'Achilles Media';
+    // "a Clínica São José", "o Restaurante Sabor Mineiro", ou só o nome
+    // quando o artigo não é dedutível: melhor sem artigo do que com o errado.
     const alvo = nameWithArticle(p.name);
-    const doAlvo = nameWithPreposition(p.name, 'de');
-    const onde = p.city ? `, aí em ${p.city},` : '';
-    return `${open}\nAnalisei ${alvo}${onde} e trabalho com soluções digitais para negócios como o de vocês: site, presença digital e automação de processos.\n\nA ideia é entender a necessidade de vocês e mostrar o que faz sentido no caso ${doAlvo}.\n\n${invite}`;
+    return [
+      `${open} Tudo bem com você?`,
+      `Sou o ${consultor}, da ${agencia}, trabalhamos com soluções digitais para empresas aqui da região, desde sistemas e automações até presença digital. Analisando ${alvo}, percebemos diversos pontos em que poderíamos colaborar na sua operação e/ou posicionamento.`,
+      'A ideia primordialmente é entender a necessidade de vocês e mostrar o que faz sentido no caso de vocês.',
+      invite
+    ].join('\n\n');
   }
 
+
+
   /* Contato vindo do extrator: o cadastro traz o nome de quem assina pela
-     empresa. Num negócio pequeno costuma ser quem atende — mas é aposta, não
+     empresa. Num negócio pequeno costuma ser quem atende, mas é aposta, não
      certeza, por isso o nome só abre a conversa e nada é afirmado sobre ele. */
   const usaBaseDaReceita = p => String(p?.source || '').startsWith('Receita Federal') && !p?.lastEnrichedAt;
 
@@ -1505,14 +1514,21 @@
     const agency = state.data.settings?.company || 'Achilles Media';
     const target = nameWithArticle(p.name);
     const primeiroNome = String(p.contactFirstName || '').trim();
+    const invite = 'Consigo te apresentar brevemente?';
+
+    /* O extrator tem abertura própria: a apresentação foi para o terceiro
+       parágrafo, para a primeira frase ser só cumprimento. O nome de quem
+       assina entra aqui quando existe. */
+    if (usaBaseDaReceita(p)) {
+      const saudacao = primeiroNome ? `{{saudacao}}, ${primeiroNome}!` : '{{saudacao}}!';
+      return receitaApproach(p, saudacao, invite);
+    }
+
     const open = primeiroNome
       ? `{{saudacao}}, ${primeiroNome}! Tudo bem? Sou o ${consultant}, da ${agency}.`
       : `{{saudacao}}! Tudo bem? Sou o ${consultant}, da ${agency}.`;
-    const invite = 'Consigo te apresentar brevemente?';
     const proof = socialProof(p);
     const angle = approachAngle(p);
-
-    if (usaBaseDaReceita(p)) return receitaApproach(p, open, invite);
 
     if (angle === 'site') {
       const problem = p.siteUnreachable
@@ -1655,7 +1671,7 @@
     }catch(error){
       // O site publicado não respondeu: sinal comercial relevante, porque muda
       // a abordagem para construção de site. Fica visível no card para você
-      // conferir — há sites no ar que simplesmente bloqueiam robôs.
+      // conferir, há sites no ar que simplesmente bloqueiam robôs.
       p.siteUnreachable=true; p.lastEnrichedAt=new Date().toISOString();
       upsertProspect(p); renderCurrentPage();
       toast('Site não respondeu',`${error.message}. Confira no navegador: se estiver mesmo fora do ar, a abordagem de site já foi ajustada.`);
@@ -1679,7 +1695,7 @@
   }
 
   /* Gera a abordagem com o Claude. A observação é escrita por você no modal e
-     entra como instrução extra — é o que diferencia a mensagem do texto padrão.
+     entra como instrução extra, é o que diferencia a mensagem do texto padrão.
      Quando a IA não está configurada, devolvemos o texto base e avisamos, em
      vez de fingir que a mensagem veio do Claude. */
   async function generateProspectApproach(id, note='') {
@@ -1690,7 +1706,7 @@
     const daReceita=usaBaseDaReceita(p);
     /* Contato do extrator: o único fato é o cadastro. Não há site conferido,
        nota nem avaliação, então o Claude precisa ser proibido de deduzir
-       necessidade — senão ele escreve "vi que vocês precisam de X", que é
+       necessidade, senão ele escreve "vi que vocês precisam de X", que é
        exatamente o chute que tiramos da tela. */
     const angleBrief=daReceita
       ? 'Este contato veio do cadastro público da Receita: não sabemos se a empresa tem site, nem como é a presença digital dela. Não afirme nada sobre isso e não escolha um serviço específico. Apresente o leque (site, presença digital e automação de processos) e deixe a definição para a conversa.'
@@ -1702,7 +1718,7 @@
     const instructions=[
       'Reescreva a primeira abordagem de WhatsApp abaixo mantendo a mesma estrutura: abertura com saudação e apresentação, um parágrafo com a oportunidade observada, um parágrafo curto com o ganho para o negócio e um convite final em forma de pergunta.',
       'Português do Brasil, tom profissional e natural, sem emoji, sem exagero e sem prometer resultado.',
-      'Comece exatamente com o marcador {{saudacao}} no lugar de "Bom dia" — ele é substituído pelo horário real do envio.',
+      'Comece exatamente com o marcador {{saudacao}} no lugar de "Bom dia": ele é substituído pelo horário real do envio.',
       'Não invente fatos e não diga que analisou algo que não está no contexto.',
       angleBrief,
       observation?`Observação do consultor, use como ângulo principal: ${observation}`:'',
@@ -1803,7 +1819,7 @@
   }
 
   /* Progresso derivado das tarefas do projeto.
-     Antes era um inteiro digitado na criação que nunca mudava — a barra não
+     Antes era um inteiro digitado na criação que nunca mudava, a barra não
      media nada. Projetos ainda sem tarefas caem no valor manual. */
   function projectProgress(project) {
     const tasks = state.data.tasks.filter(t => t.projectId === project.id);

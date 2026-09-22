@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Teste do extrator por CNAE — `node tools/testar-cnae-search.mjs`
+   Teste do extrator por CNAE, `node tools/testar-cnae-search.mjs`
 
    Não precisa de instalação nem de internet: as respostas do Supabase, do
    CNPJá e do IBGE são simuladas aqui.

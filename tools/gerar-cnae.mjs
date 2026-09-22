@@ -5,13 +5,13 @@
    tabela de tempos em tempos; regerar é a forma de atualizar o extrator.
 
    Além do código e da descrição, cada subclasse ganha uma lista de apelidos e
-   um rótulo de exibição (`r`), que é o apelido principal já acentuado — o que
+   um rótulo de exibição (`r`), que é o apelido principal já acentuado, o que
    entra nas mensagens de abordagem.
    Motivo: a descrição oficial é jurídica, não é como as pessoas falam. Quem
    quer prospectar pet shop procura "pet shop", não "comércio varejista de
    animais vivos e de artigos e alimentos para animais de estimação"; quem
    quer clínica procura "clínica", e a palavra aparece em duas subclasses das
-   1.332. Os apelidos são um índice de busca extra — a base continua inteira,
+   1.332. Os apelidos são um índice de busca extra, a base continua inteira,
    ninguém fica de fora por não estar nesta lista.
    ========================================================================== */
 
@@ -138,7 +138,7 @@ const APELIDOS = {
   'coworking': /escrit[óo]rio virtual|aluguel de .* comerciais/i
 };
 
-/* Os apelidos acima são chaves de busca, então vivem sem acento — quem digita
+/* Os apelidos acima são chaves de busca, então vivem sem acento, quem digita
    "clinica" precisa achar. Mas o mesmo termo vai para dentro de uma mensagem
    de WhatsApp ("quem procura clínica na região"), e aí acento faz falta.
    Este mapa dá a forma de exibição; o que não está aqui já está apresentável. */
@@ -200,4 +200,4 @@ writeFileSync('assets/cnae.json', JSON.stringify({
 const orfaos = [...usados].filter(([, n]) => n === 0).map(([t]) => t);
 console.log(`subclasses: ${rows.length}`);
 console.log(`com apelido: ${rows.filter(r => r.a).length}`);
-if (orfaos.length) console.warn(`AVISO — apelidos sem nenhuma subclasse: ${orfaos.join(', ')}`);
+if (orfaos.length) console.warn(`AVISO, apelidos sem nenhuma subclasse: ${orfaos.join(', ')}`);
