@@ -107,6 +107,12 @@
         category: p.category || '',
         score: p.score ?? null,
         address: p.address || '',
+        /* Sem estes tres, um lead de fora entrava na fila e recebia a
+           saudacao em portugues: a montagem do item usa lista fixa de
+           campos, entao o que nao esta aqui e descartado. */
+        country: p.country || '',
+        language: p.language || '',
+        longitude: p.longitude == null ? null : p.longitude,
         inCrm: !!p.crmLeadId,
         sent: false, failed: false, skipped: false
       }));

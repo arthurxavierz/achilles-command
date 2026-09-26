@@ -27,8 +27,13 @@ check('fixo brasileiro fica fora', AP.whatsappDigits({ phone: '+553433334444', c
 check('canadense entra inteiro', AP.whatsappDigits({ phone: '+16045551234', country: 'CA' }) === '16045551234',
   AP.whatsappDigits({ phone: '+16045551234', country: 'CA' }));
 check('espanhol entra inteiro', AP.whatsappDigits({ phone: '+34600123456', country: 'ES' }) === '34600123456');
-check('sem país declarado continua na regra brasileira',
-  AP.whatsappDigits({ phone: '+16045551234' }) === '');
+// Antes o padrao sem pais era sempre Brasil, e por isso um numero de fora
+// era rejeitado calado. Agora o proprio numero decide.
+check('sem país declarado, o número é que decide',
+  AP.pareceBrasileiro({ phone: '+5534991234567' }) === true &&
+  AP.pareceBrasileiro({ phone: '+16045551234' }) === false);
+check('lista vazia é tratada como Brasil, o caso de sempre',
+  AP.pareceBrasileiro({}) === true);
 
 console.log('\n--- saudação na hora de preencher ---');
 const manha = new Date(Date.UTC(2026, 8, 26, 17, 0)); // 17h UTC = 10h em Vancouver
@@ -45,6 +50,32 @@ check('hora local acompanha a longitude',
   String(AP.localHour(-123.12, manha)));
 check('sem longitude usa a hora de quem dispara',
   AP.localHour(null, manha) === manha.getHours());
+
+
+console.log('');
+console.log('--- ponte antiga, sem o campo de pais ---');
+// A pagina do Command pode estar em cache com a versao que nao mandava pais.
+check('numero canadense sem pais declarado ainda entra',
+  AP.whatsappDigits({ phone: '+16045551234' }) === '16045551234',
+  AP.whatsappDigits({ phone: '+16045551234' }));
+check('numero espanhol sem pais declarado ainda entra',
+  AP.whatsappDigits({ phone: '+34600123456' }) === '34600123456');
+check('celular brasileiro sem pais declarado segue a regra do celular',
+  AP.whatsappDigits({ phone: '+5534991234567' }) === '5534991234567');
+check('fixo brasileiro sem pais declarado continua fora',
+  AP.whatsappDigits({ phone: '+553433334444' }) === '');
+check('mensagem de lead de fora nao sai em portugues',
+  !/^Bom |^Boa /.test(AP.resolveMessage('{{saudacao}}! How are you?', { phone: '+16045551234', language: 'en', longitude: -123.12 })),
+  AP.resolveMessage('{{saudacao}}! How are you?', { phone: '+16045551234', language: 'en', longitude: -123.12 }).split('!')[0]);
+
+console.log('');
+console.log('--- o item da fila carrega o que a mensagem precisa ---');
+const fonteCmd = readFileSync(new URL('../prospecta/content-command.js', import.meta.url), 'utf8');
+const bloco = fonteCmd.slice(fonteCmd.indexOf('prospectId: p.id'), fonteCmd.indexOf('sent: false'));
+for (const campo of ['country', 'language', 'longitude']) {
+  check('item da fila leva ' + campo, bloco.includes(campo + ':'),
+    'sem isto o lead de fora recebe saudacao em portugues');
+}
 
 console.log(falhas ? `\n${falhas} FALHA(S)` : '\nTudo passou');
 process.exitCode = falhas ? 1 : 0;

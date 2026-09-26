@@ -60,9 +60,24 @@
     return d.length >= 8 && d.length <= 15 ? d : '';
   }
 
+  /* Quando o pais nao vem junto, ele e deduzido do proprio numero: comeca
+     com 55 e tem 12 ou 13 digitos, e brasileiro e vale a regra do celular;
+     qualquer outra coisa e de fora e entra como candidato.
+
+     Isso existe porque a pagina do Command pode estar em cache com a versao
+     anterior, que nao mandava o pais. Sem a deducao, um numero canadense
+     caia na regra brasileira, era rejeitado, e a barra da fila simplesmente
+     nao aparecia, sem erro nenhum. */
+  function pareceBrasileiro(p = {}) {
+    const declarado = String(p.country || '').toUpperCase();
+    if (declarado) return declarado === 'BR';
+    const d = String(p.whatsapp || p.phone || '').replace(/\D/g, '');
+    if (!d) return true;
+    return d.startsWith('55') && (d.length === 12 || d.length === 13);
+  }
+
   function whatsappDigits(p = {}) {
-    const fora = String(p.country || 'BR').toUpperCase() !== 'BR';
-    if (fora) return intlDigits(p.whatsapp) || intlDigits(p.phone);
+    if (!pareceBrasileiro(p)) return intlDigits(p.whatsapp) || intlDigits(p.phone);
     const explicit = brDigits(p.whatsapp);
     if (explicit) return explicit;
     const phone = brDigits(p.phone);
@@ -103,7 +118,7 @@
   }
 
   function resolveMessage(text, item = {}) {
-    const fora = String(item.country || 'BR').toUpperCase() !== 'BR';
+    const fora = !pareceBrasileiro(item);
     const idioma = fora ? (item.language || 'en') : 'pt';
     const hora = fora ? localHour(item.longitude) : null;
     return String(text || '')
@@ -123,7 +138,7 @@
 
   window.AP = {
     DAY, DEFAULT_SETTINGS, store,
-    brDigits, intlDigits, whatsappDigits, greeting, localHour, resolveMessage, withinHours,
+    brDigits, intlDigits, pareceBrasileiro, whatsappDigits, greeting, localHour, resolveMessage, withinHours,
     sleep, esc
   };
 })();
