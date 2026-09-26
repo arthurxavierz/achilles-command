@@ -156,7 +156,7 @@
     data: loadData(),
     modal: null,
     assistantMessages: [],
-    prospecting: { mode: "places", results: [], origin: null, query: "", city: "", state: "MG", radiusKm: 20, limit: 30, loading: false, view: "split", filters: { contact: [], fit: [] } },
+    prospecting: { mode: "places", results: [], origin: null, query: "", city: "", state: "MG", country: "BR", radiusKm: 20, limit: 30, loading: false, view: "split", filters: { contact: [], fit: [] } },
     /* Extrator por CNAE. Vive separado de `prospecting` porque é uma etapa
        anterior: aqui se monta e revisa a prévia; só depois de importar é que
        as empresas entram na lista de captação e ganham abordagem. */
@@ -557,12 +557,15 @@
         <form id="prospect-search-form" class="prospect-form">
           <div class="form-group"><label class="label">Segmento</label><input class="input" name="query" value="${escapeHtml(p.query)}" placeholder="Ex.: clínicas, contabilidades, academias" required /></div>
           <div class="form-group"><label class="label">Cidade</label><input class="input" name="city" value="${escapeHtml(p.city)}" placeholder="Ex.: Uberaba" required /></div>
-          <div class="form-group small"><label class="label">UF</label><input class="input" name="state" value="${escapeHtml(p.state)}" maxlength="2" /></div>
+          <div class="form-group small"><label class="label">${p.country==='BR'?'UF':'Estado'}</label><input class="input" name="state" value="${escapeHtml(p.state)}" maxlength="${p.country==='BR'?'2':'40'}" /></div>
+          <div class="form-group"><label class="label">País</label><select class="select" name="country">${(paisesCatalogo||[PAIS_PADRAO]).map(x=>`<option value="${x.codigo}" ${p.country===x.codigo?'selected':''}>${escapeHtml(x.nome)}</option>`).join('')}</select></div>
           <div class="form-group small"><label class="label">Raio</label><select class="select" name="radiusKm">${[5,10,20,30,50].map(v=>`<option value="${v}" ${Number(p.radiusKm)===v?"selected":""}>${v} km</option>`).join("")}</select></div>
           <div class="form-group small"><label class="label">Limite</label><select class="select" name="limit">${[10,20,30,50,60].map(v=>`<option value="${v}" ${Number(p.limit)===v?"selected":""}>${v}</option>`).join("")}</select></div>
           <button class="btn btn-primary prospect-search-btn" type="submit" ${p.loading?'disabled':''}>${p.loading?icon('refresh'):icon('search')} ${p.loading?'Buscando...':'Buscar leads'}</button>
         </form>
-        <div class="prospect-help">Sem Docker. A busca usa Google Places pelo backend do Achilles Command; telefone, site, avaliações e score chegam organizados para prospecção.</div>
+        <div class="prospect-help">${p.country==='BR'
+          ? 'Sem Docker. A busca usa Google Places pelo backend do Achilles Command; telefone, site, avaliações e score chegam organizados para prospecção.'
+          : `Busca em ${escapeHtml(paisPorCodigo(p.country).nome)}. Fora do Brasil o formato do número <strong>não diz se é celular</strong>, então o WhatsApp não está confirmado. A abordagem sai em ${escapeHtml({pt:'português',en:'inglês',es:'espanhol'}[paisPorCodigo(p.country).idioma] || 'inglês')}, focada em site e landing page, com o protótipo como convite.`}</div>
       </section>
       ${p.loading ? `<div class="card prospect-loading"><span class="spinner"></span><strong>Buscando empresas e organizando oportunidades...</strong><span>Consultando estabelecimentos e sinais comerciais do Google Places.</span></div>` : ''}
       ${all.length ? `<div class="grid grid-3 prospect-metrics">${metric('target','Encontrados',all.length,'Busca atual','Empresas localizadas')}${metric('trend','Alta oportunidade',high,'Score ≥ 75','Prioridade Achilles')}${metric('phone','No WhatsApp',contactable,'Abordagem direta','Celular publicado no Google')}</div>
@@ -1307,6 +1310,123 @@
     return network==='instagram' ? `https://instagram.com/${handle}` : '';
   }
 
+
+  /* ==========================================================================
+     Prospecção fora do Brasil
+
+     A busca por Google Maps passou a aceitar outros países. Três coisas mudam
+     quando o país não é o Brasil:
+
+     1. O telefone. No Brasil dá para saber se é celular pelo formato, e só
+        celular abre WhatsApp. Em quase todo lugar isso não existe: o número
+        não diz o tipo. Então lá fora todo telefone vira candidato, e a tela
+        diz que não está confirmado, em vez de fingir certeza.
+
+     2. A mensagem. Sai no idioma do país e com um ângulo só, o de site e
+        landing page, oferecendo o protótipo. É a oferta que fecha sem
+        depender de fuso, conversa longa ou visita.
+
+     3. A saudação. "Bom dia" tem hora, e a hora é a do contato, não a sua.
+     ========================================================================== */
+
+  const PAIS_PADRAO = { codigo: 'BR', nome: 'Brasil', idioma: 'pt', dial: '55', idiomaGoogle: 'pt-BR' };
+
+  let paisesCatalogo = null;
+  let paisesPromise = null;
+
+  /* Falha de rede também preenche o catálogo, com o Brasil sozinho. Antes o
+     erro deixava `paisesCatalogo` nulo, e como quem chama aqui redesenha a
+     página quando a promessa resolve, cada desenho tentava de novo: laço
+     infinito de renderização toda vez que o arquivo não carregasse. */
+  function carregarPaises() {
+    if (paisesCatalogo) return Promise.resolve(paisesCatalogo);
+    if (!paisesPromise) {
+      paisesPromise = fetch('/assets/paises.json')
+        .then(r => r.ok ? r.json() : Promise.reject(new Error('tabela indisponível')))
+        .then(d => { paisesCatalogo = (d.paises?.length ? d.paises : [PAIS_PADRAO]); return paisesCatalogo; })
+        .catch(() => { paisesCatalogo = [PAIS_PADRAO]; return paisesCatalogo; });
+    }
+    return paisesPromise;
+  }
+
+  const paisPorCodigo = codigo =>
+    (paisesCatalogo || [PAIS_PADRAO]).find(x => x.codigo === String(codigo || 'BR').toUpperCase()) || PAIS_PADRAO;
+
+  const paisDoProspect = p => paisPorCodigo(p?.country || 'BR');
+  const ehExterior = p => String(p?.country || 'BR').toUpperCase() !== 'BR';
+
+  /* --- telefone -------------------------------------------------------------
+     O Google devolve o número já em formato internacional. Fora do Brasil não
+     tentamos adivinhar o tipo: se tem cara de telefone discável, serve como
+     candidato. O intervalo de 8 a 15 dígitos é o que o padrão E.164 permite. */
+  function digitosInternacionais(valor) {
+    const d = String(valor || '').replace(/\D/g, '');
+    return d.length >= 8 && d.length <= 15 ? d : '';
+  }
+
+  /* --- saudação -------------------------------------------------------------
+     Traduzida, e pela hora de quem recebe. Prospect em Vancouver recebendo
+     "Good evening" às nove da manhã dele entrega a automação na primeira
+     palavra. */
+  const SAUDACOES = {
+    pt: ['Bom dia', 'Boa tarde', 'Boa noite'],
+    en: ['Good morning', 'Good afternoon', 'Good evening'],
+    es: ['Buenos días', 'Buenas tardes', 'Buenas noches']
+  };
+
+  function saudacaoDoIdioma(idioma = 'pt', hora = new Date().getHours()) {
+    const lista = SAUDACOES[idioma] || SAUDACOES.pt;
+    if (hora >= 5 && hora < 12) return lista[0];
+    if (hora >= 12 && hora < 18) return lista[1];
+    return lista[2];
+  }
+
+  /* Hora local do prospect, a partir da longitude. É aproximação por fuso
+     geográfico: ignora horário de verão e fronteiras políticas, então pode
+     errar uma hora. Errar uma hora ainda acerta o período do dia, que é o que
+     a saudação precisa. */
+  function horaLocalDoProspect(p) {
+    const lon = Number(p?.longitude);
+    if (!Number.isFinite(lon)) return new Date().getHours();
+    const agora = new Date();
+    const utc = agora.getUTCHours() + agora.getUTCMinutes() / 60;
+    const local = utc + Math.round(lon / 15);
+    return ((Math.floor(local) % 24) + 24) % 24;
+  }
+
+  /* --- abordagem ------------------------------------------------------------
+     Um ângulo só: site e landing page, com o protótipo como convite. Lá fora
+     não temos contexto para variar o discurso, e variar sem contexto é chute.
+     O nome da empresa entra sem artigo porque em inglês e espanhol o artigo
+     antes de nome próprio de empresa soa errado. */
+  const ABORDAGEM_EXTERIOR = {
+    en: (saudacao, empresa, consultor, agencia) => [
+      `${saudacao}! How are you?`,
+      `I'm ${consultor}, from ${agencia}. We design websites and landing pages for local businesses. Looking at ${empresa}, I put together a prototype of how your site could look.`,
+      `Could I show it to you briefly?`
+    ].join('\n\n'),
+    es: (saudacao, empresa, consultor, agencia) => [
+      `${saudacao}! ¿Cómo está?`,
+      `Soy ${consultor}, de ${agencia}. Diseñamos sitios web y landing pages para negocios locales. Viendo ${empresa}, preparé un prototipo de cómo podría quedar su sitio.`,
+      `¿Puedo mostrárselo brevemente?`
+    ].join('\n\n'),
+    pt: (saudacao, empresa, consultor, agencia) => [
+      `${saudacao}! Tudo bem?`,
+      `Sou o ${consultor}, da ${agencia}. Criamos sites e landing pages para negócios locais. Olhando ${empresa}, montei um protótipo de como o site de vocês poderia ficar.`,
+      `Consigo te apresentar brevemente?`
+    ].join('\n\n')
+  };
+
+  function abordagemExterior(p) {
+    const consultor = state.data.settings?.ownerName || 'Arthur';
+    const agencia = state.data.settings?.company || 'Achilles Media';
+    const idioma = paisDoProspect(p).idioma || 'en';
+    const montar = ABORDAGEM_EXTERIOR[idioma] || ABORDAGEM_EXTERIOR.en;
+    // A saudação fica como variável e só é resolvida na hora de abrir a
+    // conversa, igual ao fluxo brasileiro.
+    return montar('{{saudacao}}', p.name, consultor, agencia);
+  }
+
   /* --- contato do prospect -------------------------------------------------
      O Google Places devolve fixo e celular no mesmo campo. No Brasil só o
      celular abre conversa no WhatsApp: 9 dígitos começando com 9 depois do
@@ -1319,6 +1439,7 @@
   }
 
   function whatsappDigits(p={}) {
+    if(ehExterior(p)) return digitosInternacionais(p.whatsapp) || digitosInternacionais(p.phone);
     const explicit=brDigits(p.whatsapp);
     if(explicit) return explicit;
     const phone=brDigits(p.phone);
@@ -1519,6 +1640,8 @@
     /* O extrator tem abertura própria: a apresentação foi para o terceiro
        parágrafo, para a primeira frase ser só cumprimento. O nome de quem
        assina entra aqui quando existe. */
+    if (ehExterior(p)) return abordagemExterior(p);
+
     if (usaBaseDaReceita(p)) {
       const saudacao = primeiroNome ? `{{saudacao}}, ${primeiroNome}!` : '{{saudacao}}!';
       return receitaApproach(p, saudacao, invite);
@@ -1550,8 +1673,11 @@
   }
 
   function resolveApproach(text, p={}) {
+    const saudacao = ehExterior(p)
+      ? saudacaoDoIdioma(paisDoProspect(p).idioma, horaLocalDoProspect(p))
+      : greeting();
     return String(text||'')
-      .replace(/\{\{\s*sauda[cç][aã]o\s*\}\}/gi, greeting())
+      .replace(/\{\{\s*sauda[cç][aã]o\s*\}\}/gi, saudacao)
       .replace(/\{\{\s*empresa\s*\}\}/gi, p.name || 'sua empresa');
   }
 
@@ -1598,16 +1724,17 @@
     const message=resolveApproach(text??approachText(p),p);
     logActivity('Abordagem aberta',`WhatsApp de ${p.name} aberto pela captação.`);
     saveData(); // openWhatsApp relê o armazenamento quando há lead no CRM
-    openWhatsApp(number,message,p.crmLeadId||null);
+    openWhatsApp(number,message,p.crmLeadId||null,ehExterior(p));
   }
 
   async function searchProspects(form) {
     const fd=new FormData(form);
-    Object.assign(state.prospecting,{query:String(fd.get('query')||'').trim(),city:String(fd.get('city')||'').trim(),state:String(fd.get('state')||'').trim().toUpperCase(),radiusKm:Number(fd.get('radiusKm')||20),limit:Number(fd.get('limit')||30),loading:true});
+    const paisEscolhido=String(fd.get('country')||'BR').trim().toUpperCase();
+    Object.assign(state.prospecting,{query:String(fd.get('query')||'').trim(),city:String(fd.get('city')||'').trim(),state:String(fd.get('state')||'').trim().toUpperCase(),country:paisEscolhido,radiusKm:Number(fd.get('radiusKm')||20),limit:Number(fd.get('limit')||30),loading:true});
     renderCurrentPage();
     try {
-      const {query,city,state:uf,radiusKm,limit}=state.prospecting;
-      const response=await fetch(CFG.prospectingUrl||'/.netlify/functions/prospect-search',{method:'POST',headers:await internalApiHeaders(),body:JSON.stringify({query,city,state:uf,radiusKm,limit})});
+      const {query,city,state:uf,country,radiusKm,limit}=state.prospecting;
+      const response=await fetch(CFG.prospectingUrl||'/.netlify/functions/prospect-search',{method:'POST',headers:await internalApiHeaders(),body:JSON.stringify({query,city,state:uf,country,radiusKm,limit})});
       const raw=await response.text(); let data={};
       try{ data=raw?JSON.parse(raw):{}; }catch{ throw new Error('A busca não retornou JSON. Confirme se as Netlify Functions estão no deploy mais recente.'); }
       if(!response.ok) throw new Error(data.error||'Falha ao buscar empresas');
@@ -1972,6 +2099,12 @@
   }
 
   function bindProspecting() {
+    // O seletor de país depende da tabela; na primeira vez ela ainda não
+    // chegou, então desenhamos de novo quando chegar.
+    if (!paisesCatalogo) carregarPaises().then(lista => {
+      // Só vale redesenhar se o seletor tiver o que mostrar além do Brasil.
+      if (lista.length > 1 && state.route === 'prospecting') renderCurrentPage();
+    });
     document.querySelectorAll('[data-prospect-mode]').forEach(b=>b.addEventListener('click',()=>{
       state.prospecting.mode=b.dataset.prospectMode;
       renderCurrentPage();
@@ -2131,9 +2264,13 @@
     return "Entendi. Para direcionar corretamente, me conte qual processo ou resultado você quer melhorar na empresa.";
   }
 
-  function openWhatsApp(phone,text,leadId=null) {
+  /* `jaTemDDI` existe por causa da prospecção fora do Brasil. A regra de
+     completar com 55 vale para telefone digitado no CRM, que vem sem código
+     de país; um número canadense tem 11 dígitos e cairia nela, virando
+     wa.me/5516045551234, que não existe. */
+  function openWhatsApp(phone,text,leadId=null,jaTemDDI=false) {
     let clean=String(phone||"").replace(/\D/g,"");
-    if(clean.length===10 || clean.length===11) clean=`55${clean}`;
+    if(!jaTemDDI && (clean.length===10 || clean.length===11)) clean=`55${clean}`;
     if(!clean){toast('Contato sem telefone','Complete o número antes de abrir o WhatsApp.');return;}
     const url=`https://wa.me/${clean}${text?`?text=${encodeURIComponent(text)}`:""}`;
     window.open(url,"_blank","noopener,noreferrer");

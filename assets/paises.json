@@ -1,0 +1,159 @@
+{
+ "observacao": "Idioma define a lingua da abordagem. dial e o codigo do pais para montar o link do WhatsApp.",
+ "paises": [
+  {
+   "codigo": "BR",
+   "nome": "Brasil",
+   "idioma": "pt",
+   "dial": "55",
+   "idiomaGoogle": "pt-BR"
+  },
+  {
+   "codigo": "PT",
+   "nome": "Portugal",
+   "idioma": "pt",
+   "dial": "351",
+   "idiomaGoogle": "pt-BR"
+  },
+  {
+   "codigo": "US",
+   "nome": "Estados Unidos",
+   "idioma": "en",
+   "dial": "1",
+   "idiomaGoogle": "en"
+  },
+  {
+   "codigo": "CA",
+   "nome": "Canadá",
+   "idioma": "en",
+   "dial": "1",
+   "idiomaGoogle": "en"
+  },
+  {
+   "codigo": "GB",
+   "nome": "Reino Unido",
+   "idioma": "en",
+   "dial": "44",
+   "idiomaGoogle": "en"
+  },
+  {
+   "codigo": "IE",
+   "nome": "Irlanda",
+   "idioma": "en",
+   "dial": "353",
+   "idiomaGoogle": "en"
+  },
+  {
+   "codigo": "AU",
+   "nome": "Austrália",
+   "idioma": "en",
+   "dial": "61",
+   "idiomaGoogle": "en"
+  },
+  {
+   "codigo": "NZ",
+   "nome": "Nova Zelândia",
+   "idioma": "en",
+   "dial": "64",
+   "idiomaGoogle": "en"
+  },
+  {
+   "codigo": "ZA",
+   "nome": "África do Sul",
+   "idioma": "en",
+   "dial": "27",
+   "idiomaGoogle": "en"
+  },
+  {
+   "codigo": "SG",
+   "nome": "Singapura",
+   "idioma": "en",
+   "dial": "65",
+   "idiomaGoogle": "en"
+  },
+  {
+   "codigo": "ES",
+   "nome": "Espanha",
+   "idioma": "es",
+   "dial": "34",
+   "idiomaGoogle": "es"
+  },
+  {
+   "codigo": "MX",
+   "nome": "México",
+   "idioma": "es",
+   "dial": "52",
+   "idiomaGoogle": "es"
+  },
+  {
+   "codigo": "AR",
+   "nome": "Argentina",
+   "idioma": "es",
+   "dial": "54",
+   "idiomaGoogle": "es"
+  },
+  {
+   "codigo": "CL",
+   "nome": "Chile",
+   "idioma": "es",
+   "dial": "56",
+   "idiomaGoogle": "es"
+  },
+  {
+   "codigo": "CO",
+   "nome": "Colômbia",
+   "idioma": "es",
+   "dial": "57",
+   "idiomaGoogle": "es"
+  },
+  {
+   "codigo": "PE",
+   "nome": "Peru",
+   "idioma": "es",
+   "dial": "51",
+   "idiomaGoogle": "es"
+  },
+  {
+   "codigo": "UY",
+   "nome": "Uruguai",
+   "idioma": "es",
+   "dial": "598",
+   "idiomaGoogle": "es"
+  },
+  {
+   "codigo": "PY",
+   "nome": "Paraguai",
+   "idioma": "es",
+   "dial": "595",
+   "idiomaGoogle": "es"
+  },
+  {
+   "codigo": "EC",
+   "nome": "Equador",
+   "idioma": "es",
+   "dial": "593",
+   "idiomaGoogle": "es"
+  },
+  {
+   "codigo": "CR",
+   "nome": "Costa Rica",
+   "idioma": "es",
+   "dial": "506",
+   "idiomaGoogle": "es"
+  },
+  {
+   "codigo": "PA",
+   "nome": "Panamá",
+   "idioma": "es",
+   "dial": "507",
+   "idiomaGoogle": "es"
+  },
+  {
+   "codigo": "BO",
+   "nome": "Bolívia",
+   "idioma": "es",
+   "dial": "591",
+   "idiomaGoogle": "es"
+  }
+ ]
+}

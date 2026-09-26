@@ -869,7 +869,7 @@ h1, h2, h3, h4,
    ========================================================================== */
 .prospecting-layout { display: grid; gap: 18px; }
 .prospect-search-panel { padding: 20px; }
-.prospect-form { display: grid; grid-template-columns: minmax(220px,1.4fr) minmax(180px,1fr) 82px 100px 90px auto; gap: 10px; align-items: end; margin-top: 16px; }
+.prospect-form { display: grid; grid-template-columns: minmax(200px,1.3fr) minmax(150px,1fr) 82px minmax(120px,.8fr) 100px 90px auto; gap: 10px; align-items: end; margin-top: 16px; }
 .prospect-form .form-group { margin: 0; }
 .prospect-search-btn { height: 40px; white-space: nowrap; }
 .prospect-help { margin-top: 12px; font-size: 10px; color: var(--muted); line-height: 1.55; }

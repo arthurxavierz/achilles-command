@@ -12,6 +12,11 @@
    O que mais importa aqui são os três testes de segurança no fim: importar
    não pode criar lead no CRM, não pode marcar ninguém como abordado e
    reimportar a mesma busca não pode duplicar contato.
+
+   Este arquivo também é a rede de proteção contra um laço de renderização: o
+   fetch simulado aqui recusa /assets/paises.json de propósito. Se o código
+   voltar a redesenhar a página toda vez que essa tabela falhar, a suíte trava
+   em vez de passar.
    ========================================================================== */
 
 import { JSDOM } from 'jsdom';

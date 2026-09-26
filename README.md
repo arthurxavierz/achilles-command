@@ -5,7 +5,7 @@ Central interna da Achilles Media para comercial, operação e IA.
 ## O que esta versão já faz
 
 - Dashboard, CRM/Kanban, conversas, campanhas, propostas, projetos e tarefas.
-- **Captação nativa de empresas** dentro do próprio Command, por duas origens: Google Maps (segmento + cidade + raio) e **extrator por CNAE**, que busca numa cópia própria do cadastro da Receita, hospedada no seu Supabase e sem custo por consulta.
+- **Captação nativa de empresas** dentro do próprio Command, por duas origens: Google Maps (segmento + cidade + raio, no Brasil ou em outros 21 países, com abordagem no idioma local) e **extrator por CNAE**, que busca numa cópia própria do cadastro da Receita, hospedada no seu Supabase e sem custo por consulta.
 - Prévia revisável no extrator, listas nomeadas e importação manual, importar nunca dispara mensagem.
 - Mapa dos resultados, telefone/WhatsApp/e-mail/site quando publicados, CSV e score de oportunidade.
 - Enriquecimento opcional pelo site público da empresa para tentar localizar e-mail, telefone e redes sociais.
@@ -45,7 +45,8 @@ Para usar a captação localmente com as Functions, execute o projeto com Netlif
 ```text
 index.html / app.js / styles.css      painel
 chat.html / chat.js                   chatbot público por regras
-netlify/functions/prospect-search.mjs captação por Google Places
+netlify/functions/prospect-search.mjs captação por Google Places, Brasil e exterior
+assets/paises.json                    países aceitos na busca, com idioma da abordagem
 netlify/functions/cnae-search.mjs     extrator por CNAE (base própria ou CNPJá)
 netlify/lib/telefone.mjs              leitura do telefone da Receita e do 9o digito
 tools/carregar-base-cnpj.mjs          baixa e carrega a base da Receita no Supabase

@@ -43,9 +43,31 @@ A lista de subclasses da CNAE 2.3 é baixada da API do IBGE por `tools/gerar-cna
 
 A lista de municípios é consultada na API de localidades do IBGE, usada para sugerir cidades na interface e para converter o nome da cidade no código usado pelo filtro.
 
+## Prospecção fora do Brasil
+
+A busca por Google Maps aceita outros países, escolhidos no campo **País** do formulário. São 21 além do Brasil, listados em `assets/paises.json`, todos em idiomas que o sistema sabe escrever: português, inglês e espanhol.
+
+Exemplo: `clinical` em `Vancouver`, estado `BC`, país `Canadá`.
+
+Três coisas mudam quando o país não é o Brasil.
+
+**O telefone não diz se é celular.** No Brasil dá para saber pelo formato, e por isso só celular ganha botão de WhatsApp. Em quase todo lugar isso não existe: o número não carrega essa informação. Então lá fora todo telefone vira candidato, e a tela avisa que o WhatsApp não está confirmado. Vale lembrar que em Estados Unidos e Canadá o WhatsApp é bem menos usado que aqui, então espere taxa de resposta menor que a do Brasil.
+
+**A abordagem tem um ângulo só, site e landing page**, com o protótipo como convite, e sai no idioma do país. Não variamos o discurso porque lá fora não temos o contexto que justifica variar, e variar sem contexto é chute.
+
+> Good morning! How are you?
+>
+> I'm Arthur, from Achilles Media. We design websites and landing pages for local businesses. Looking at Vancouver Dental Clinic, I put together a prototype of how your site could look.
+>
+> Could I show it to you briefly?
+
+**A saudação usa a hora de quem recebe.** Ela é calculada pela longitude do estabelecimento, então é aproximada: ignora horário de verão e pode errar uma hora. Errar uma hora ainda acerta o período do dia, que é o que a saudação precisa. Sem isso, um lead em Vancouver receberia "Good evening" às nove da manhã dele.
+
+Para adicionar um país novo, basta uma linha em `assets/paises.json`. Só não adicione um cujo idioma não esteja em `ABORDAGEM_EXTERIOR` no `app.js`, senão a mensagem sai em inglês.
+
 ## OpenStreetMap / Nominatim
 
-O Nominatim é usado apenas como apoio para localizar aproximadamente o centro da cidade informada e aplicar o raio da busca. Se essa consulta falhar, a pesquisa continua usando cidade e UF diretamente no texto enviado ao Google Places.
+O Nominatim é usado apenas como apoio para localizar aproximadamente o centro da cidade informada e aplicar o raio da busca, no Brasil e nos demais países aceitos. Se essa consulta falhar, a pesquisa continua usando cidade e UF diretamente no texto enviado ao Google Places.
 
 ## Leaflet / OpenStreetMap
 

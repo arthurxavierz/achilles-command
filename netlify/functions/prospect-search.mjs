@@ -24,9 +24,49 @@ const json = (data, status = 200) => Response.json(data, {
   headers: { 'Cache-Control': 'no-store' }
 });
 
+async function fetchJson(url, options = {}, timeout = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    const raw = await res.text();
+    let data = {};
+    try { data = raw ? JSON.parse(raw) : {}; } catch { data = {}; }
+    return { ok: res.ok, status: res.status, data };
+  } catch {
+    return { ok: false, status: 0, data: {} };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const first = (...values) => values.find(v => v !== undefined && v !== null && String(v).trim() !== '') || '';
 const cleanPhone = (v = '') => String(v).replace(/[^\d+]/g, '').replace(/^00/, '+');
 const clamp = (n, min, max) => Math.max(min, Math.min(max, Number(n)));
+
+/* --- países -------------------------------------------------------------
+   A tabela vive em assets/paises.json para a tela e a Function não saírem de
+   sincronia. O que importa aqui: código ISO para o regionCode do Google,
+   idioma para os resultados virem no idioma certo, e o nome para a
+   geocodificação e para o texto da busca. */
+const BRASIL = { codigo: 'BR', nome: 'Brasil', idioma: 'pt', dial: '55', idiomaGoogle: 'pt-BR' };
+let paisesCache = null;
+
+async function tabelaDePaises(request) {
+  if (paisesCache) return paisesCache;
+  try {
+    const origem = new URL(request.url).origin;
+    const { ok, data } = await fetchJson(`${origem}/assets/paises.json`, {}, 8000);
+    if (ok && Array.isArray(data?.paises) && data.paises.length) paisesCache = data.paises;
+  } catch { /* sem a tabela, só o Brasil funciona, que é o caso de sempre */ }
+  return paisesCache || [BRASIL];
+}
+
+async function acharPais(request, codigo) {
+  const alvo = String(codigo || 'BR').trim().toUpperCase();
+  const tabela = await tabelaDePaises(request);
+  return tabela.find(x => x.codigo === alvo) || BRASIL;
+}
 
 function env(name) {
   try { return Netlify.env.get(name); } catch { return process.env[name]; }
@@ -40,18 +80,18 @@ function haversine(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-async function geocodeCity(city, state) {
+async function geocodeCity(city, state, pais) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 7000);
   try {
     const url = new URL('https://nominatim.openstreetmap.org/search');
-    url.searchParams.set('q', [city, state, 'Brasil'].filter(Boolean).join(', '));
+    url.searchParams.set('q', [city, state, pais.nome].filter(Boolean).join(', '));
     url.searchParams.set('format', 'jsonv2');
     url.searchParams.set('limit', '1');
-    url.searchParams.set('countrycodes', 'br');
+    url.searchParams.set('countrycodes', pais.codigo.toLowerCase());
     const res = await fetch(url, {
       signal: controller.signal,
-      headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'pt-BR,pt;q=0.9' }
+      headers: { 'User-Agent': USER_AGENT, 'Accept-Language': `${pais.idiomaGoogle},${pais.idioma};q=0.9` }
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -140,17 +180,20 @@ function scoreProspect(p) {
   };
 }
 
-/* Só celular abre conversa no WhatsApp: no Brasil são 9 dígitos começando
-   com 9 depois do DDD. O Google devolve fixo e celular no mesmo campo. */
+/* No Brasil dá para separar celular de fixo pelo formato: 9 dígitos começando
+   com 9 depois do DDD. Fora daqui o número não diz o tipo, então qualquer
+   telefone vale o mesmo no desempate, e a tela avisa que o WhatsApp não está
+   confirmado. */
 function contactRank(p = {}) {
   const digits = String(p.phone || '').replace(/\D/g, '');
+  if (!digits) return 0;
+  if (p.country && p.country !== 'BR') return 2;
   const local = digits.startsWith('55') ? digits.slice(2) : digits;
   if (local.length === 11 && local[2] === '9') return 3;
-  if (digits) return 2;
-  return 0;
+  return 2;
 }
 
-function mapPlace(place, origin) {
+function mapPlace(place, origin, pais) {
   const lat = Number(place.location?.latitude);
   const lon = Number(place.location?.longitude);
   const name = place.displayName?.text || '';
@@ -160,6 +203,9 @@ function mapPlace(place, origin) {
   const p = {
     id: `gplace_${place.id}`,
     source: 'Google Places',
+    country: pais.codigo,
+    countryName: pais.nome,
+    language: pais.idioma,
     sourceId: place.id,
     name,
     category: categoryLabel(place),
@@ -184,7 +230,7 @@ function mapPlace(place, origin) {
   return { ...p, ...scoreProspect(p) };
 }
 
-async function googleTextSearch({ query, city, state, radiusKm, limit, origin, apiKey }) {
+async function googleTextSearch({ query, city, state, radiusKm, limit, origin, apiKey, pais }) {
   const results = [];
   let pageToken = '';
   let calls = 0;
@@ -193,9 +239,11 @@ async function googleTextSearch({ query, city, state, radiusKm, limit, origin, a
   for (let page = 0; page < maxPages && results.length < limit; page++) {
     const pageSize = Math.min(20, limit - results.length);
     const body = {
-      textQuery: origin ? query : `${query} em ${city}${state ? `, ${state}` : ''}, Brasil`,
-      languageCode: 'pt-BR',
-      regionCode: 'BR',
+      // Sem coordenada, o país entra no texto da busca. "em" só funciona em
+      // português; nos demais o Google entende bem a lista separada por vírgula.
+      textQuery: origin ? query : [query, city, state, pais.nome].filter(Boolean).join(', '),
+      languageCode: pais.idiomaGoogle,
+      regionCode: pais.codigo,
       pageSize,
     };
 
@@ -264,12 +312,13 @@ export default async (request) => {
     const limit = clamp(body.limit || 30, 5, 60);
     if (!query || !city) return json({ error: 'Informe o segmento e a cidade.' }, 400);
 
-    const origin = await geocodeCity(city, state);
-    const { places, calls } = await googleTextSearch({ query, city, state, radiusKm, limit, origin, apiKey });
+    const pais = await acharPais(request, body.country);
+    const origin = await geocodeCity(city, state, pais);
+    const { places, calls } = await googleTextSearch({ query, city, state, radiusKm, limit, origin, apiKey, pais });
 
     const seen = new Set();
     let results = places
-      .map(place => mapPlace(place, origin))
+      .map(place => mapPlace(place, origin, pais))
       .filter(Boolean)
       .filter(p => p.businessStatus !== 'CLOSED_PERMANENTLY')
       .filter(p => {
@@ -292,12 +341,17 @@ export default async (request) => {
       query,
       city,
       state,
+      country: pais.codigo,
+      countryName: pais.nome,
+      language: pais.idioma,
       radiusKm,
-      origin: origin || (results[0] ? { lat: results[0].latitude, lon: results[0].longitude, label: `${city}, ${state}` } : null),
+      origin: origin || (results[0] ? { lat: results[0].latitude, lon: results[0].longitude, label: [city, state, pais.nome].filter(Boolean).join(', ') } : null),
       count: results.length,
       apiCalls: calls,
       results,
-      note: 'Dados comerciais obtidos pela Places API (New). Score Achilles é uma estimativa comercial baseada apenas nos sinais retornados pela busca.'
+      note: pais.codigo === 'BR'
+        ? 'Dados comerciais obtidos pela Places API (New). Score Achilles é uma estimativa comercial baseada apenas nos sinais retornados pela busca.'
+        : `Dados comerciais obtidos pela Places API (New) em ${pais.nome}. Fora do Brasil o formato do número não diz se é celular, então o WhatsApp não está confirmado: confira antes de tratar como contato certo.`
     });
   } catch (error) {
     const message = error?.name === 'AbortError'
