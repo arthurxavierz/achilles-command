@@ -168,6 +168,19 @@
 
     const item = queue.items[queue.i];
 
+    /* --- teto de tempo por lead -----------------------------------------
+       O relógio fica no item, e não numa variável, porque abrir a conversa
+       recarrega a página: qualquer temporizador em memória morre no caminho.
+       Assim o prazo sobrevive à navegação e continua contando. */
+    const tetoMs = Math.max(15, Number(settings.leadTimeout || 45)) * 1000;
+    if (!item.startedAt) { item.startedAt = Date.now(); await putQueue(queue); }
+    if (Date.now() - item.startedAt > tetoMs) {
+      item.failed = true; item.timedOut = true; queue.i++; await putQueue(queue);
+      status(`${esc(item.name || item.wa)} não abriu a tempo, seguindo para o próximo.`);
+      if (++fails >= MAX_FAILS && auto) return halt(queue, `${fails} leads seguidos não abriram. Fila pausada para você conferir se o WhatsApp Web está respondendo.`);
+      return advance(queue, settings, 0);
+    }
+
     if (!String(item.message || '').trim()) {
       item.skipped = true; queue.i++; await putQueue(queue);
       status(`${esc(item.name)} está sem mensagem — pulando.`);
@@ -201,7 +214,17 @@
       }
       await sleep(600); tries++;
     }
-    if (!qs(SEL.msgInput)) { status('Não achei a caixa de mensagem. O WhatsApp Web está conectado?'); return; }
+    if (!qs(SEL.msgInput)) {
+      /* Aqui a fila morria: ela dava `return` e ficava parada para sempre.
+         Acontece com número que não existe sem o WhatsApp mostrar o aviso
+         que sabemos reconhecer, e com conversa que simplesmente não carrega.
+         Agora o lead vira falha e a fila anda; se for a aba que está ruim,
+         o contador de falhas seguidas pausa tudo logo em seguida. */
+      item.failed = true; queue.i++; await putQueue(queue);
+      status(`A conversa de ${esc(item.name || item.wa)} não abriu, seguindo para o próximo.`);
+      if (++fails >= MAX_FAILS && auto) return halt(queue, `${fails} conversas seguidas não abriram. Fila pausada: confira se o WhatsApp Web está conectado.`);
+      return advance(queue, settings, 0);
+    }
 
     // 3. esperar o WhatsApp escrever; só preencher à mão se ele não escrever
     const text = item.resolved || resolveMessage(item.message, item);
@@ -209,7 +232,13 @@
     while (!composeText() && waited < 12) { await sleep(400); waited++; }
     if (!composeText()) fillCompose(text);
     if (!composeText()) {
-      return halt(queue, 'Não consegui escrever na caixa de mensagem. Deixe a aba do WhatsApp visível e retome a fila.');
+      /* Antes isto pausava a fila inteira no primeiro tropeço. Um lead que
+         não aceita texto é problema dele; a aba inteira quebrada é problema
+         de todos, e aí as falhas seguidas pausam sozinhas. */
+      item.failed = true; queue.i++; await putQueue(queue);
+      status(`Não consegui escrever a mensagem de ${esc(item.name || item.wa)}, seguindo para o próximo.`);
+      if (++fails >= MAX_FAILS) return halt(queue, 'Não consegui escrever na caixa de mensagem. Deixe a aba do WhatsApp visível e retome a fila.');
+      return advance(queue, settings, 0);
     }
     const baseline = outgoingCount();
 

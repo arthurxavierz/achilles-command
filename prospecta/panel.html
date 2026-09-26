@@ -31,6 +31,12 @@
       <span>Janela para cancelar antes de cada envio</span>
       <div class="row"><input type="number" id="autoSendDelay" min="0" max="120" /><em>segundos</em></div>
     </label>
+
+    <label class="field">
+      <span>Desistir de um lead depois de</span>
+      <small>Número que não existe deixa a conversa sem abrir. Passado esse tempo, a fila marca falha e segue para o próximo em vez de ficar parada.</small>
+      <div class="row"><input type="number" id="leadTimeout" min="15" max="300" /><em>segundos</em></div>
+    </label>
     <label class="switch">
       <input type="checkbox" id="returnToCommand" />
       <span>Voltar para a aba do Command ao terminar</span>

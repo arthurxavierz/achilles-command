@@ -2,7 +2,7 @@
 (function () {
   const { store, DEFAULT_SETTINGS } = window.AP;
   const $ = id => document.getElementById(id);
-  const FIELDS = ['pauseBetween', 'dailyCap', 'hoursStart', 'hoursEnd', 'autoSendDelay'];
+  const FIELDS = ['pauseBetween', 'dailyCap', 'hoursStart', 'hoursEnd', 'autoSendDelay', 'leadTimeout'];
   const FLAGS = ['respectHours', 'autoSend', 'returnToCommand'];
 
   async function renderQueue() {

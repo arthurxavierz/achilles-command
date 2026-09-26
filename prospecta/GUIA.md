@@ -81,17 +81,27 @@ Isso começou a valer na versão 1.2.0. Se você atualizou o Command mas não re
 
 ## Quando a fila para sozinha
 
-O automático prefere parar a errar em série:
+Ela para avisando, e sempre guardando o progresso. Os motivos:
 
-```
-número inválido 2x seguidas          pausa para você conferir a base
-envio não confirmado em 20s          marca falha; 2 seguidas pausam a fila
-a caixa não tem o texto preparado    pula o lead; 2 seguidas pausam a fila
-não consegui escrever na caixa       pausa e pede a aba visível
-teto diário / fora do horário        pausa e guarda a fila para depois
-```
+- **Teto diário atingido.** A fila fica salva para o dia seguinte.
+- **Fora da janela de horário**, se você ligou essa trava.
+- **Duas falhas seguidas** no modo automático. É o sinal de que o problema não é o lead, é a aba: WhatsApp desconectado, sessão caída ou a tela travada.
 
-Em todos esses casos o progresso fica salvo: é só retomar pela gaveta do WhatsApp Web.
+## O que ela faz com um número que não existe
+
+Esse é o caso mais comum, e ficou pior desde que a base da Receita entrou: o 9º dígito dos celulares é reconstruído, então parte dos números simplesmente não tem ninguém do outro lado. Fora do Brasil o número nem sequer é confirmado como celular.
+
+Antes, a fila **ficava presa**. Ela esperava a conversa abrir por 24 segundos e, se o WhatsApp não mostrasse um aviso que ela soubesse reconhecer, parava ali sem avançar e sem erro claro.
+
+Agora cada lead tem um prazo, 45 segundos por padrão, ajustável nas configurações. O que acontece quando estoura:
+
+1. O lead é marcado como falha.
+2. A fila segue para o próximo.
+3. Se acontecer duas vezes seguidas, aí sim ela pausa, porque o problema deixou de ser do lead e passou a ser da aba.
+
+O mesmo vale para conversa que não carrega e para caixa de mensagem que não aceita texto. Nenhum caminho termina com a fila parada em silêncio.
+
+O relógio de cada lead fica guardado na própria fila, e não na memória da página. Abrir uma conversa recarrega o WhatsApp Web, o que apagaria qualquer temporizador comum.
 
 ## Configurações
 

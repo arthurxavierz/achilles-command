@@ -11,6 +11,10 @@
     respectHours: true,
     autoSend: false,       // modo automático: a extensão aperta o Enter por você
     autoSendDelay: 4,      // segundos de janela para você cancelar antes de sair
+    /* Teto de tempo por lead. Número que não existe deixa a conversa sem
+       abrir, e sem isto a fila ficava parada nele para sempre. Passado o
+       prazo, o lead é marcado como falha e a fila segue. */
+    leadTimeout: 45,
     returnToCommand: true  // ao terminar/pausar, volta o foco para a aba do Command
   };
 
