@@ -1208,6 +1208,11 @@
       prospects: (list||[]).map(p => ({
         id: p.id, name: p.name, category: p.category || '', address: p.address || '',
         phone: p.phone || '', whatsapp: p.whatsapp || '',
+        /* A extensão precisa disto para leads de fora: o país muda a regra do
+           telefone, o idioma muda a saudação, e a longitude dá a hora de
+           quem recebe, que não é a hora de quem dispara. */
+        country: p.country || 'BR', language: p.language || 'pt',
+        longitude: Number.isFinite(Number(p.longitude)) ? Number(p.longitude) : null,
         score: p.score ?? null, recommendedService: p.recommendedService || '',
         message: approachText(p),
         crmLeadId: p.crmLeadId || null,
@@ -1386,7 +1391,10 @@
      errar uma hora. Errar uma hora ainda acerta o período do dia, que é o que
      a saudação precisa. */
   function horaLocalDoProspect(p) {
-    const lon = Number(p?.longitude);
+    const bruto = p?.longitude;
+    // Number(null) e Number('') dão 0, que é Greenwich, não "sem longitude".
+    if (bruto === null || bruto === undefined || bruto === '') return new Date().getHours();
+    const lon = Number(bruto);
     if (!Number.isFinite(lon)) return new Date().getHours();
     const agora = new Date();
     const utc = agora.getUTCHours() + agora.getUTCMinutes() / 60;

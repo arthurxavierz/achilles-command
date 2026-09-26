@@ -47,7 +47,18 @@
     return (d.length === 12 || d.length === 13) ? d : '';
   }
 
+  /* Fora do Brasil o número não diz se é celular, então a regra brasileira
+     descartaria o lead calado: um telefone canadense de 11 dígitos ganhava um
+     55 na frente e era rejeitado logo depois. Lá fora vale qualquer número
+     discavel, e quem avisa que o WhatsApp não está confirmado é o Command. */
+  function intlDigits(value) {
+    const d = String(value || '').replace(/\D/g, '');
+    return d.length >= 8 && d.length <= 15 ? d : '';
+  }
+
   function whatsappDigits(p = {}) {
+    const fora = String(p.country || 'BR').toUpperCase() !== 'BR';
+    if (fora) return intlDigits(p.whatsapp) || intlDigits(p.phone);
     const explicit = brDigits(p.whatsapp);
     if (explicit) return explicit;
     const phone = brDigits(p.phone);
@@ -59,16 +70,40 @@
      A saudação é resolvida na hora de preencher, não na hora de montar a
      fila: uma fila preparada de manhã e trabalhada à noite não pode chegar
      dando bom dia. */
-  function greeting(date = new Date()) {
-    const h = date.getHours();
-    if (h >= 5 && h < 12) return 'Bom dia';
-    if (h >= 12 && h < 18) return 'Boa tarde';
-    return 'Boa noite';
+  const SAUDACOES = {
+    pt: ['Bom dia', 'Boa tarde', 'Boa noite'],
+    en: ['Good morning', 'Good afternoon', 'Good evening'],
+    es: ['Buenos días', 'Buenas tardes', 'Buenas noches']
+  };
+
+  function greeting(date = new Date(), idioma = 'pt', hora = null) {
+    const h = hora == null ? date.getHours() : hora;
+    const lista = SAUDACOES[idioma] || SAUDACOES.pt;
+    if (h >= 5 && h < 12) return lista[0];
+    if (h >= 12 && h < 18) return lista[1];
+    return lista[2];
+  }
+
+  /* Hora de quem recebe, pela longitude. Aproximação por fuso geográfico:
+     ignora horário de verão e pode errar uma hora, mas errar uma hora ainda
+     acerta o período do dia. Sem isto, uma fila trabalhada à noite daqui
+     chegaria dando boa noite às nove da manhã em Vancouver. */
+  function localHour(longitude, date = new Date()) {
+    // Number(null) e Number('') dão 0, que é Greenwich. Sem este teste, lead
+    // sem longitude era tratado como se estivesse em Londres.
+    if (longitude === null || longitude === undefined || longitude === '') return date.getHours();
+    const lon = Number(longitude);
+    if (!Number.isFinite(lon)) return date.getHours();
+    const utc = date.getUTCHours() + date.getUTCMinutes() / 60;
+    return ((Math.floor(utc + Math.round(lon / 15)) % 24) + 24) % 24;
   }
 
   function resolveMessage(text, item = {}) {
+    const fora = String(item.country || 'BR').toUpperCase() !== 'BR';
+    const idioma = fora ? (item.language || 'en') : 'pt';
+    const hora = fora ? localHour(item.longitude) : null;
     return String(text || '')
-      .replace(/\{\{\s*sauda[cç][aã]o\s*\}\}/gi, greeting())
+      .replace(/\{\{\s*sauda[cç][aã]o\s*\}\}/gi, greeting(new Date(), idioma, hora))
       .replace(/\{\{\s*empresa\s*\}\}/gi, item.name || 'sua empresa');
   }
 
@@ -84,7 +119,7 @@
 
   window.AP = {
     DAY, DEFAULT_SETTINGS, store,
-    brDigits, whatsappDigits, greeting, resolveMessage, withinHours,
+    brDigits, intlDigits, whatsappDigits, greeting, localHour, resolveMessage, withinHours,
     sleep, esc
   };
 })();
