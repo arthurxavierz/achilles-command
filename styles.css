@@ -911,6 +911,18 @@ h1, h2, h3, h4,
 .approach-target.warn { color: #eda56c; font-family: inherit; letter-spacing: 0; }
 .label-optional { color: var(--faint); font-weight: 400; text-transform: none; letter-spacing: 0; }
 
+/* --- painel da fila de abordagem ------------------------------------------
+   Existe para a aba de Captacao nao ficar muda sobre a fila quando a extensao
+   nao esta instalada ou precisa ser recarregada. */
+.fila-painel { border-color: rgba(201, 162, 65, 0.22); }
+.fila-painel.sem-extensao { border-color: rgba(224, 138, 60, 0.3); background: rgba(224, 138, 60, 0.05); }
+.fila-texto { margin: 10px 0 0; font-size: 11px; line-height: 1.65; color: var(--text-soft); }
+.fila-passos { margin: 10px 0 0; padding-left: 18px; font-size: 11px; line-height: 1.8; color: var(--text-soft); }
+.fila-passos .mono, .fila-texto .mono {
+  font-family: var(--font-mono); font-size: 10px; padding: 1px 5px; border-radius: 5px;
+  background: rgba(245, 241, 230, 0.05); color: var(--gold-light);
+}
+
 /* --- extrator por CNAE ----------------------------------------------------
    A captação passou a ter duas origens: o mapa e o cadastro da Receita.
    O seletor no topo é o que separa as duas; daqui para baixo é só o extrator. */

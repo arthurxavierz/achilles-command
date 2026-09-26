@@ -4,6 +4,15 @@
    script não faz nada. */
 (function () {
   const { esc, whatsappDigits } = window.AP;
+
+  /* Deixa um rastro no HTML para o próprio Command saber que a extensão está
+     instalada. Sem isso, quem não a tem vê a aba de Captação sem barra
+     nenhuma e sem explicação, e não tem como saber se falta instalar, falta
+     recarregar ou se a lista e que está vazia. */
+  try {
+    const versao = chrome.runtime.getManifest().version;
+    document.documentElement.setAttribute('data-achilles-prospecta', versao);
+  } catch (e) { /* sem runtime a barra ainda funciona; só o aviso some */ }
   const BRIDGE_ID = 'achilles-bridge';
 
   /* A ponte é relida a cada passada, mas só vale reprocessar quando o texto

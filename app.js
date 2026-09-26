@@ -541,8 +541,66 @@
         ${PROSPECT_MODES.map(([id, label, ic, hint]) => `<button type="button" class="prospect-mode ${mode===id?'active':''}" data-prospect-mode="${id}" role="tab" aria-selected="${mode===id?'true':'false'}" title="${escapeHtml(hint)}">${icon(ic,15)} <span>${label}</span></button>`).join('')}
       </div>
       ${mode === 'cnae' ? extractorSection() : placesSection()}
-      ${prospectBridge(visibleProspects())}
+      ${filaPainel()}
+      ${prospectBridge(prospectsParaFila())}
     </div>`;
+  }
+
+  /* O que a extensão vê como fila. Na aba do Google é a lista visível; na do
+     extrator são os selecionados da prévia, porque lá abordagem e WhatsApp já
+     funcionam antes de importar, e a fila precisa funcionar junto. Sem isto a
+     barra da extensão nunca aparecia enquanto você estava no extrator. */
+  function prospectsParaFila() {
+    if (state.prospecting.mode !== 'cnae') return visibleProspects();
+    const x = state.extractor;
+    return (x.results || []).filter(r => x.selected.includes(r.id));
+  }
+
+  /* --- fila de abordagem ----------------------------------------------------
+     A barra da fila é desenhada pela extensão, não pelo Command. Quem não a
+     tem instalada via a aba sem barra nenhuma e sem explicação, sem saber se
+     faltava instalar, faltava recarregar, ou se a lista é que estava vazia.
+     Este bloco responde as três coisas. */
+  function filaPainel() {
+    const fila = prospectsParaFila();
+    const prontos = fila.filter(p => whatsappDigits(p) && !p.contactedAt).length;
+    const total = fila.length;
+    const versao = document.documentElement.getAttribute('data-achilles-prospecta');
+    const noExtrator = state.prospecting.mode === 'cnae';
+
+    if (!versao) {
+      return `<section class="card card-pad fila-painel sem-extensao">
+        <div class="card-head"><div><h3 class="card-title">${icon('send',15)} Fila de abordagem</h3><p class="card-subtitle">A extensão Achilles Prospecta não foi detectada neste navegador.</p></div></div>
+        <p class="fila-texto">É ela que monta a fila e abre as conversas no WhatsApp Web. Sem ela, os botões de WhatsApp dos cards continuam funcionando, um contato por vez.</p>
+        <ol class="fila-passos">
+          <li>Abra <span class="mono">chrome://extensions</span> e ligue o <strong>Modo do desenvolvedor</strong>.</li>
+          <li>Clique em <strong>Carregar sem compactação</strong> e escolha a pasta <span class="mono">prospecta</span> do projeto.</li>
+          <li>Recarregue esta página.</li>
+        </ol>
+        <p class="fila-texto text-muted">Se você já instalou, ela provavelmente precisa ser recarregada: use o botão de atualizar no cartão dela, em <span class="mono">chrome://extensions</span>.</p>
+      </section>`;
+    }
+
+    const ondeEsta = `A barra da fila está no <strong>canto inferior direito</strong> desta tela, com <strong>Revisar uma a uma</strong> e <strong>Disparo automático</strong>.`;
+    const deOnde = noExtrator
+      ? 'Ela segue os contatos que você marcou na prévia.'
+      : 'Ela segue a lista que está na tela, com os filtros aplicados.';
+    const semTelefone = noExtrator
+      ? 'Marque contatos com telefone na prévia.'
+      : 'Ajuste os filtros de contato.';
+    const semLista = noExtrator
+      ? 'Marque contatos na prévia para montar a fila.'
+      : 'Faça uma busca para montar a fila.';
+
+    let corpo;
+    if (!total) corpo = semLista;
+    else if (!prontos) corpo = `Nenhum dos ${total} contatos desta lista tem telefone que abra conversa, então a fila está vazia. ${semTelefone}`;
+    else corpo = `${ondeEsta} ${deOnde}`;
+
+    return `<section class="card card-pad fila-painel">
+      <div class="card-head"><div><h3 class="card-title">${icon('send',15)} Fila de abordagem</h3><p class="card-subtitle">Extensão Achilles Prospecta ${escapeHtml(versao)} ativa.</p></div><span class="tag ${prontos?'gold':''}">${prontos} ${prontos===1?'pronto':'prontos'}</span></div>
+      <p class="fila-texto">${corpo}</p>
+    </section>`;
   }
 
   function placesSection() {

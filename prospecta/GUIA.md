@@ -48,7 +48,16 @@ Sem ela nada quebra, a marcação fica só no navegador.
 
 ## Usar
 
-**1. Monte a lista no Command.** Abra Captação, busque, aplique os filtros. Uma barra aparece no canto inferior direito com quantos leads estão prontos, ela conta só quem tem telefone utilizável e ainda não foi abordado (no Brasil, isso quer dizer celular).
+**1. Monte a lista no Command.** Abra Captação e busque.
+
+Na própria aba existe um painel **Fila de abordagem**, que diz se a extensão foi detectada e quantos contatos estão prontos. Se ela não estiver instalada, é esse painel que explica o que fazer. Use-o para saber onde você está antes de procurar a barra.
+
+Com a extensão ativa, uma barra aparece no **canto inferior direito** com a contagem. Ela conta só quem tem telefone utilizável e ainda não foi abordado (no Brasil, isso quer dizer celular).
+
+De onde sai a fila depende da aba:
+
+- **Google Maps**: a lista que está na tela, já com os filtros aplicados.
+- **CNAE / Receita**: os contatos que você marcou na prévia. Não precisa importar antes; marcar já basta.
 
 **2. Escolha o modo:**
 
