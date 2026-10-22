@@ -1,0 +1,127 @@
+/* Estúdio de roteiros: página inteira da extensão. A base vem de lib/ui.css. */
+html, body { margin: 0; min-height: 100%; }
+body.apx-root { background: var(--bg); }
+code { font-family: var(--mono); font-size: 11.5px; color: #d9c48a; background: rgba(201, 162, 65, .08); padding: 1px 5px; border-radius: 5px; }
+
+.st-top {
+  position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 14px;
+  padding: 12px 22px; border-bottom: 1px solid var(--line); background: rgba(14, 13, 11, .92); backdrop-filter: blur(8px);
+}
+.st-brand { display: flex; flex-direction: column; }
+.st-brand strong { font-size: 14px; letter-spacing: -.01em; }
+.st-brand small { font-size: 10.5px; color: var(--dim); }
+.st-tabs { display: flex; gap: 2px; margin-left: 18px; flex: 1; }
+.st-tabs button {
+  border: 0; background: transparent; color: var(--dim); padding: 8px 13px; border-radius: 9px;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.st-tabs button:hover { color: var(--text); }
+.st-tabs button.on { color: var(--text); background: var(--s3); box-shadow: inset 0 0 0 1px var(--line); }
+.st-top-actions { display: flex; gap: 6px; }
+
+main { padding: 22px; }
+.st-pane { display: none; }
+.st-pane.on { display: block; }
+.st-pane[data-pane="roteiros"].on { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 22px; align-items: start; }
+
+.st-side { position: sticky; top: 82px; display: flex; flex-direction: column; gap: 12px; }
+.st-new { width: 100%; }
+.st-list { display: flex; flex-direction: column; gap: 6px; max-height: calc(100vh - 330px); overflow: auto; }
+.st-item {
+  display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left;
+  padding: 10px 11px; border-radius: 11px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--s1); color: var(--text);
+}
+.st-item .apx-dot { margin-top: 5px; }
+.st-item:hover { border-color: var(--line2); }
+.st-item.on { border-color: var(--goldline); background: var(--goldbg); }
+.st-item-body { display: flex; flex-direction: column; min-width: 0; }
+.st-item-body b { font-size: 13px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-item-body small { font-size: 10.5px; color: var(--dim); margin-top: 2px; }
+.st-command-card { padding: 12px; border-radius: 12px; border: 1px dashed var(--line2); font-size: 11.5px; color: var(--muted); }
+.st-command-card b { display: block; margin: 5px 0 4px; color: var(--text); }
+.st-command-card p { margin: 0; line-height: 1.55; color: var(--dim); }
+
+.st-main { min-width: 0; padding: 18px 20px; border-radius: 18px; border: 1px solid var(--line); background: var(--s1); }
+.st-editor-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.st-colors { display: flex; gap: 6px; }
+.st-color { width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); }
+.st-color.on { border-color: var(--text); }
+.st-sample { text-align: right; }
+.apx-spacer { flex: 1; }
+.st-editor-foot { display: flex; align-items: center; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+#dirty { color: var(--orange); }
+.st-empty { padding: 50px 20px; text-align: center; }
+.st-empty h2 { margin: 0 0 6px; font-size: 18px; }
+.st-empty.small { padding: 20px; }
+
+/* resultados */
+.st-wrap { max-width: 1060px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.st-narrow { max-width: 760px; }
+.st-row-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.st-row-head h2 { margin: 0 0 3px; font-size: 20px; letter-spacing: -.02em; }
+.st-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.st-kpi { padding: 14px 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--s1); display: flex; flex-direction: column; gap: 4px; }
+.st-kpi strong { font-size: 26px; font-weight: 800; letter-spacing: -.03em; color: var(--text); }
+.st-kpi small { font-size: 10.5px; color: var(--dim); }
+.st-card { padding: 16px 18px; border-radius: 16px; border: 1px solid var(--line); background: var(--s1); display: flex; flex-direction: column; gap: 10px; }
+.st-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
+.st-bars { display: flex; flex-direction: column; gap: 4px; }
+.st-bar-row { display: grid; grid-template-columns: minmax(140px, 240px) minmax(0, 1fr) 84px; gap: 14px; align-items: center; padding: 7px 6px; border-radius: 9px; outline: none; }
+.st-bar-row:hover, .st-bar-row:focus-visible { background: var(--s2); }
+.st-bar-name { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12.5px; }
+.st-bar-name span:last-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-bar-name em { font-style: normal; font-size: 10px; color: var(--faint); }
+.st-bar-track { height: 12px; border-radius: 0 4px 4px 0; background: transparent; border-left: 1px solid var(--line2); }
+.st-bar-track i { display: block; height: 100%; border-radius: 0 4px 4px 0; }
+.st-bar-val { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; }
+.st-bar-val b { font-size: 14px; color: var(--text); }
+.st-bar-val small { font-size: 10.5px; color: var(--dim); }
+.st-tip {
+  position: fixed; z-index: 50; pointer-events: none; padding: 7px 10px; border-radius: 9px; font-size: 11.5px;
+  background: var(--s4); border: 1px solid var(--line2); color: var(--text); opacity: 0; transition: opacity .1s;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .4); max-width: 320px;
+}
+.st-tip.show { opacity: 1; }
+
+.st-log-help { margin: -4px 0 0; }
+.st-log { display: flex; flex-direction: column; max-height: 520px; overflow: auto; }
+.st-log-row { display: grid; grid-template-columns: 92px minmax(0, 1fr) minmax(0, 200px) 112px; gap: 12px; align-items: center; padding: 8px 4px; border-top: 1px solid var(--line); font-size: 12px; }
+.st-log-row:first-child { border-top: 0; }
+.st-log-when { font-family: var(--mono); font-size: 10.5px; color: var(--dim); }
+.st-log-who { display: flex; flex-direction: column; min-width: 0; }
+.st-log-who b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-log-who small { font-size: 10.5px; color: var(--dim); }
+.st-log-script { display: flex; align-items: center; gap: 7px; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.st-state {
+  justify-self: end; padding: 4px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--line); background: var(--s3); color: var(--dim);
+}
+.st-state.ok { color: var(--green); border-color: rgba(95, 201, 139, .3); background: rgba(95, 201, 139, .08); }
+.st-state.ok::before { content: "✓ "; }
+.st-state.auto { color: var(--orange); border-color: rgba(237, 165, 108, .3); background: rgba(237, 165, 108, .07); }
+.st-state.auto::before { content: "⚙ "; }
+.st-state:hover { border-color: var(--goldline); color: var(--text); }
+
+/* ajustes */
+.st-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.st-form label span { display: block; font-size: 11.5px; color: var(--muted); margin-bottom: 5px; }
+.st-help, .st-vars { display: flex; flex-direction: column; gap: 8px; }
+.st-help div, .st-vars div { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 12px; font-size: 12px; color: var(--muted); align-items: baseline; }
+.st-vars { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--line); }
+.st-vars em { font-style: normal; color: var(--dim); }
+
+@media (max-width: 900px) {
+  main { padding: 14px 16px; }
+  .st-top { flex-wrap: wrap; padding: 10px 16px; }
+  .st-tabs { margin-left: 0; order: 3; width: 100%; }
+  .st-pane[data-pane="roteiros"].on { grid-template-columns: 1fr; }
+  .st-side { position: static; }
+  .st-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .st-bar-row { grid-template-columns: minmax(0, 1fr) 70px; }
+  .st-bar-track { grid-column: 1 / -1; order: 3; }
+  .st-log-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .st-log-when, .st-log-script { display: none; }
+  .st-form, .st-help div, .st-vars div { grid-template-columns: 1fr; }
+}

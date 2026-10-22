@@ -45,6 +45,17 @@
     setTimeout(() => $('saved').classList.remove('show'), 1800);
   }
 
+  /* Biblioteca e o melhor roteiro dos últimos 30 dias, para ver o placar sem
+     abrir o estúdio. */
+  async function renderRoteiros() {
+    const lista = await window.AP.roteiros.list();
+    const { rows } = window.AP.estatisticas(await window.AP.log.all(), lista, Date.now() - 30 * 864e5);
+    const lider = rows.find(r => r.sent >= 5);
+    $('roteiros').innerHTML = `<strong>${lista.length}</strong> na biblioteca` +
+      (lider ? `<br>Melhor em 30 dias: ${window.AP.esc(lider.name)}, ${Math.round(lider.rate * 100)}% de resposta (${lider.replied}/${lider.sent})` : '<br>O placar aparece depois dos primeiros envios.');
+  }
+
   $('save').addEventListener('click', save);
-  loadSettings(); renderQueue(); renderStats();
+  $('studio').addEventListener('click', () => chrome.runtime.openOptionsPage());
+  loadSettings(); renderQueue(); renderStats(); renderRoteiros();
 })();

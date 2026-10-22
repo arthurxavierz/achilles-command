@@ -59,14 +59,31 @@ De onde sai a fila depende da aba:
 - **Google Maps**: a lista que está na tela, já com os filtros aplicados.
 - **CNAE / Receita**: os contatos que você marcou na prévia. Não precisa importar antes; marcar já basta.
 
-**2. Escolha o modo:**
+**2. Monte o disparo.** Os dois botões da barra abrem o **Montar disparo**, uma janela por cima da Captação:
+
+```
+MENSAGEM                                   COMO CHEGA · lead 2 de 12   ‹ ›
+[✓] Abordagem do Command  (por lead)        ┌───────────────────────────┐
+[✓] Curto e direto        6 leads           │ Boa tarde! Tudo certo?    │
+[ ] Com portfólio em PDF  📎 1  [Editar]    │ Aqui é o Arthur, da ...   │
++ Novo roteiro   Estúdio ↗                  └───────────────────────────┘
+▓▓▓▓▓▓░░░░░░  teste A/B ligado              [✎ Ajustar só para este lead]
+
+[Revisar uma a uma | ⚡ Disparo automático]           [Iniciar disparo (12)]
+```
+
+- **Abordagem do Command** é a mensagem que o sistema monta para cada lead, a de sempre.
+- **Roteiros** são textos seus, guardados na extensão, com variáveis, variações e anexos (veja *Roteiros* abaixo). Dá para criar e editar ali mesmo, sem sair da janela.
+- Marcando **mais de um**, os leads são alternados entre eles (A, B, A, B...) na ordem de oportunidade, e o estúdio compara quem responde mais. Isso inclui comparar a abordagem do Command contra um roteiro novo.
+- A prévia mostra a mensagem de cada lead **já resolvida**, com saudação, nome e variação sorteada, do jeito que vai chegar. **Ajustar só para este lead** troca o texto de um contato sem mexer no roteiro.
+- O modo escolhido ali vale para a fila:
 
 ```
 [Revisar uma a uma]     o WhatsApp abre e espera você clicar em Iniciar por lá
 [⚡ Disparo automático]  o WhatsApp abre e a fila já começa a andar
 ```
 
-Quem escreve a mensagem na caixa é o próprio WhatsApp, pelo `?text=` da URL da conversa, assim as quebras de linha e os emoji chegam exatamente como o Command montou. A extensão só confere se o que está na caixa é o que foi pedido e, só então, envia.
+Quem escreve a mensagem na caixa é o próprio WhatsApp, pelo `?text=` da URL da conversa, assim as quebras de linha e os emoji chegam exatamente como foram montados. A extensão só confere se o que está na caixa é o que foi pedido e, só então, envia.
 
 **3. Acompanhe.** A barra da Captação passa a mostrar `3/12 enviados` enquanto a fila roda, com um botão **Pausar fila** que funciona daqui mesmo. Na aba do WhatsApp, a gaveta lateral mostra o lead atual e a contagem antes de cada envio:
 
@@ -75,6 +92,8 @@ Quem escreve a mensagem na caixa é o próprio WhatsApp, pelo `?text=` da URL da
 [Pausar]       para e guarda o progresso
 [Parar]        descarta a fila
 ```
+
+A gaveta também tem o cartão **Mensagens da fila**, com os roteiros que esta fila está usando e quantos leads faltam em cada um. Dali dá para **editar o texto** (vale para os próximos leads, e opcionalmente para a biblioteca) ou **trocar** os leads restantes para outro roteiro, sem parar a fila.
 
 **4. Volta para o app.** Ao terminar a fila (ou pausar por teto, horário ou erro), a extensão traz a aba do Command para a frente com os leads já etiquetados como *Abordado* e criados no CRM. Se o Command estiver fechado, ela guarda e aplica quando você abrir.
 
@@ -87,6 +106,55 @@ Funcionam na fila igual aos de casa, com duas diferenças que a extensão resolv
 **A saudação sai no idioma do país e na hora de quem recebe**, calculada pela longitude do estabelecimento. Uma fila trabalhada às nove da noite daqui chega dando "Good afternoon" em Vancouver, que é onde o contato está. É aproximação por fuso geográfico: ignora horário de verão e pode errar uma hora, o que ainda acerta o período do dia.
 
 Isso começou a valer na versão 1.2.0. Se você atualizou o Command mas não recarregou a extensão, o lead estrangeiro simplesmente não aparece na contagem da barra, sem erro nenhum na tela. Recarregar resolve: `chrome://extensions` e o botão de atualizar no cartão da Achilles Prospecta.
+
+## Roteiros
+
+O **Estúdio de roteiros** abre pelo ícone da extensão, pelo botão *Estúdio ↗* do Montar disparo ou pelo link no fim da gaveta do WhatsApp. Tem três abas: **Roteiros** (biblioteca e editor), **Resultados** (placar) e **Ajustes** (quem assina).
+
+### Escrever
+
+```
+{{saudacao}}, {{primeiro_nome}}! {Tudo bem?|Tudo certo?}
+
+Sou o {{consultor}}, da {{agencia}}. Separei um portfólio pensando {{na_empresa}}.
+
+*Posso te mostrar?*
+```
+
+| Escrita | Vira |
+|---|---|
+| `{{saudacao}}` | Bom dia, Boa tarde ou Boa noite, no horário de quem recebe |
+| `{{primeiro_nome}}` | quem assina pela empresa (Receita). Sem o dado, some junto com a vírgula |
+| `{{empresa}}` `{{a_empresa}}` `{{da_empresa}}` `{{na_empresa}}` `{{pela_empresa}}` | Clínica Vida, a Clínica Vida, da Clínica Vida... com o artigo deduzido do nome |
+| `{{cidade}}` `{{uf}}` `{{segmento}}` `{{nota}}` `{{avaliacoes}}` | dados do lead |
+| `{{consultor}}` `{{agencia}}` | quem assina; vem do Command ou dos Ajustes do estúdio |
+| `{{abordagem_padrao}}` | a mensagem que o Command montaria para o lead, para acrescentar um P.S. |
+| `{{variavel\|texto}}` | o texto entra quando o lead não tem o dado |
+| `{Oi\|Olá\|E aí}` | variação: cada lead recebe uma das opções |
+| `*negrito*` `_itálico_` `~riscado~` | formatação do WhatsApp |
+
+A variação é sorteada por lead, mas sempre igual para o mesmo lead: a prévia e o que sai no WhatsApp são a mesma frase. Variar o texto também deixa os envios menos repetidos entre si.
+
+### Anexos
+
+Até 3 arquivos por roteiro, 15 MB cada (PDF, imagem, vídeo). Dois jeitos de sair:
+
+- **Anexo depois do texto**: a mensagem sai, e em seguida cada arquivo.
+- **Texto como legenda do anexo**: uma mensagem só, com o arquivo e o texto embaixo.
+
+No WhatsApp Web a extensão cola o arquivo na conversa (como um Ctrl+V), e se não der, solta o arquivo sobre ela ou usa o botão de anexar. Os três caminhos terminam na prévia de mídia do próprio WhatsApp; no automático a extensão clica em enviar, no modo revisar o clique é seu. Se um anexo falhar, o texto já saiu e o lead conta como abordado; dois anexos seguidos falhando pausam a fila.
+
+### Placar
+
+Cada envio entra no registro com o roteiro que levou. A resposta é percebida no WhatsApp Web, enquanto a aba está aberta, de dois jeitos: mensagem não lida daquele número na lista de conversas, ou mensagem recebida na conversa aberta. O número é ligado pelos 8 últimos dígitos, então funciona para contato não salvo, que é o caso de quase todo lead.
+
+Resposta em menos de 90 segundos é tratada como **provável mensagem automática** de WhatsApp Business e não entra na taxa, até chegar outra mensagem depois. Na lista de envios do estúdio, clicar no status corrige qualquer erro da detecção.
+
+A leitura do teste é honesta com amostra pequena: com menos de 20 envios por roteiro ela diz que ainda é sorte; acima disso, mostra a confiança de que o líder responde mais (teste de duas proporções). A partir de 95%, dá para adotar.
+
+### Levar para outra pessoa
+
+**Exportar** baixa a biblioteca inteira num `.json`, com os anexos dentro. **Importar** na outra extensão adiciona os roteiros sem apagar os de lá. Quem usa a mesma conta do Command em outro navegador ajusta o próprio nome em **Ajustes**.
 
 ## Quando a fila para sozinha
 
@@ -137,7 +205,10 @@ const SEL = {
   sendBtn:  '...',   // botão de enviar (usado no modo automático)
   outgoing: '...',   // bolhas de saída (usado para confirmar o envio)
   thread:   '...',   // container da conversa
-  dialog:   '...'    // diálogo de número inválido
+  dialog:   '...',   // diálogo de número inválido
+  attachBtn: '...',  // botão de anexar (terceira tentativa de anexo)
+  mediaSend: '...',  // enviar da prévia de mídia
+  chatRow / chatTitle / unread / incoming  // leitura de respostas
 };
 ```
 
@@ -149,6 +220,9 @@ Sintomas e causas mais comuns:
 não avança depois de enviar       -> outgoing desatualizado
 nada sai no automático            -> sendBtn desatualizado (cai no Enter sintético)
 pula todo mundo como inválido     -> dialog pegando o diálogo errado
+"Não consegui abrir o anexo"      -> colar e soltar falharam e attachBtn mudou
+anexo abre mas não sai sozinho    -> mediaSend desatualizado
+placar nunca registra resposta    -> chatRow, chatTitle ou unread desatualizados
 a fila não aparece no Command     -> domínio fora do matches do manifest
 a aba do Command trava            -> content-command.js pintando dentro do
                                      próprio MutationObserver (watchCommand)
@@ -160,6 +234,9 @@ a aba do Command trava            -> content-command.js pintando dentro do
 manifest.json           permissões e onde cada script roda
 background.js           guarda a fila, abre o WhatsApp, devolve o foco e o resultado
 lib/shared.js           telefone, saudação, horário, armazenamento, ajustes
+lib/roteiros.js         roteiros: variáveis, variações, anexos, distribuição, placar
+lib/ui.js / ui.css      editor de roteiro e prévia, usados no Command, no WhatsApp e no estúdio
+studio.html/js/css      estúdio de roteiros (página de opções da extensão)
 content-command.js      lê a ponte da Captação, monta a fila e mostra o andamento
 content-whatsapp.js     a gaveta, o laço da fila e o envio
 panel.html/js/css       configurações e status

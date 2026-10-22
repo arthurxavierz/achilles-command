@@ -46,3 +46,5 @@ button {
 .saved.show { opacity: 1; }
 
 footer { color: #5d564b; font-size: 10px; line-height: 1.5; text-align: center; margin-top: 4px; }
+button.secondary { margin-top: 10px; background: #221e19; color: #f5f1e6; border: 1px solid rgba(201, 162, 65, .34); font-weight: 600; }
+button.secondary:hover { background: #2a251f; }

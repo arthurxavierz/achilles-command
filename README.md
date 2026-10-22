@@ -10,6 +10,7 @@ Central interna da Achilles Media para comercial, operação e IA.
 - Mapa dos resultados, telefone/WhatsApp/e-mail/site quando publicados, CSV e score de oportunidade.
 - Enriquecimento opcional pelo site público da empresa para tentar localizar e-mail, telefone e redes sociais.
 - Editor de abordagem e abertura do WhatsApp com a mensagem preenchida; o clique final continua humano.
+- Extensão **Achilles Prospecta** (pasta `prospecta`): fila no WhatsApp Web e **estúdio de roteiros**, para testar abordagens em massa com variáveis, variações, anexos e teste A/B com placar de respostas. Guia em `prospecta/GUIA.md`.
 - Claude API opcional para gerar abordagens, sugerir respostas e atuar como Achilles Assistant usando o contexto do ERP.
 - Supabase para autenticação e persistência.
 - Function já preparada para WhatsApp Cloud API futuro, desativada por padrão.
@@ -50,7 +51,7 @@ assets/paises.json                    países aceitos na busca, com idioma da ab
 netlify/functions/cnae-search.mjs     extrator por CNAE (base própria ou CNPJá)
 netlify/lib/telefone.mjs              leitura do telefone da Receita e do 9o digito
 tools/carregar-base-cnpj.mjs          baixa e carrega a base da Receita no Supabase
-tools/testar-*.mjs                    testes do extrator, da interface e do carregador
+tools/testar-*.mjs                    testes do extrator, da interface, do carregador e dos roteiros
 assets/cnae.json                      base CNAE 2.3 do IBGE usada na busca
 tools/gerar-cnae.mjs                  regera a base a partir do IBGE
 netlify/functions/prospect-enrich.mjs enriquecimento do site público

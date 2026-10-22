@@ -86,3 +86,22 @@ body.ap-open #ap-drawer { transform: none; }
 .ap-btn.warn { color: #eda56c; }
 .ap-btn.danger { color: #f0a08c; }
 .ap-btn.ghost { background: transparent; }
+
+/* --- roteiros (1.6) -------------------------------------------------------- */
+.ap-msg { margin-top: 10px; padding: 9px 10px; border-radius: 10px; background: #100e0c; border: 1px solid rgba(245, 241, 230, .06); }
+.ap-msg-tag { display: flex; align-items: center; gap: 6px; font-size: 9.5px; color: #b9b2a3; font-family: "JetBrains Mono", ui-monospace, monospace; }
+.ap-msg-tag i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.ap-msg-text { margin-top: 6px; max-height: 120px; overflow: auto; white-space: pre-wrap; font-size: 11px; line-height: 1.5; color: #d9d2c2; }
+.ap-variant { padding: 9px 0; border-top: 1px solid rgba(245, 241, 230, .06); }
+.ap-variant:first-child { border-top: 0; padding-top: 0; }
+.ap-variant-head { display: flex; align-items: center; gap: 7px; font-size: 12px; }
+.ap-variant-head i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: 0 0 auto; }
+.ap-variant-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-variant-actions { display: flex; gap: 6px; margin-top: 7px; }
+.ap-btn.sm { flex: 0 0 auto; min-width: 0; padding: 6px 9px; font-size: 10.5px; }
+.ap-select {
+  flex: 1; min-width: 0; padding: 6px 8px; border-radius: 9px; cursor: pointer;
+  border: 1px solid rgba(245, 241, 230, .08); background: #221e19; color: #b9b2a3;
+  font-family: inherit; font-size: 10.5px;
+}
+.ap-studio-link { flex: 0 0 auto; width: 100%; font-size: 11px; }

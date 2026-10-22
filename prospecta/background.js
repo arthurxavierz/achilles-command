@@ -37,13 +37,29 @@ async function commandTabs() {
   return tabs.sort((a, b) => rank(b) - rank(a));
 }
 
-async function deliverPending() {
+/* Uma entrega por vez. Cada envio dispara duas ações seguidas (abordado e
+   CRM), e duas entregas em paralelo liam a mesma lista pendente antes de
+   uma delas limpar: o Command recebia tudo em dobro e registrava a
+   atividade duas vezes. Também só sai da lista o que foi entregue, para não
+   apagar uma ação que chegou durante a entrega. */
+let entregando = Promise.resolve();
+function deliverPending() {
+  entregando = entregando.then(entregar, entregar);
+  return entregando;
+}
+
+async function entregar() {
   const pending = await get('pending', []);
   if (!pending.length) return;
   for (const tab of await commandTabs()) {
     try {
       const res = await chrome.tabs.sendMessage(tab.id, { type: 'ap:deliver', actions: pending });
-      if (res && res.ok) { await set('pending', []); return; }
+      if (res && res.ok) {
+        const chave = a => `${a.kind}|${a.prospectId}|${a.at}`;
+        const entregues = new Set(pending.map(chave));
+        await set('pending', (await get('pending', [])).filter(a => !entregues.has(chave(a))));
+        return;
+      }
     } catch (e) { /* aba sem content script; tenta a próxima */ }
   }
 }
@@ -82,8 +98,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           running: false,
           autostart: !!msg.autostart,
           autoSend: !!msg.autoSend,
+          sender: msg.sender || null,
           createdAt: Date.now(), source: msg.source || ''
         });
+        /* Os roteiros da fila ficam fora do objeto da fila de propósito. O
+           laço do WhatsApp regrava a fila inteira a cada lead, com a cópia que
+           leu no começo; se o texto morasse ali, uma edição feita com a fila
+           rodando seria apagada no envio seguinte. Aqui só os editores
+           escrevem, e o laço só lê. */
+        await set('queueVariants', msg.variants || {});
         const tabId = await openWhatsApp(true);
         // Aba nova: o boot() do content script vê o autostart e começa. Aba que
         // já estava aberta não recarrega, então precisa do aviso abaixo — uma das
@@ -113,6 +136,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       case 'ap:queue-clear':
         await set('queue', null);
+        await set('queueVariants', {});
+        sendResponse({ ok: true });
+        break;
+      case 'ap:open-studio':
+        await chrome.runtime.openOptionsPage();
+        sendResponse({ ok: true });
+        break;
+      case 'ap:replied':
+        await pushPending({ kind: 'replied', prospectId: msg.prospectId, name: msg.name, script: msg.script || '' });
         sendResponse({ ok: true });
         break;
       case 'ap:contacted':

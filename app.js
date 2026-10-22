@@ -581,7 +581,7 @@
       </section>`;
     }
 
-    const ondeEsta = `A barra da fila está no <strong>canto inferior direito</strong> desta tela, com <strong>Revisar uma a uma</strong> e <strong>Disparo automático</strong>.`;
+    const ondeEsta = `A barra da fila está no <strong>canto inferior direito</strong> desta tela, com <strong>Revisar uma a uma</strong> e <strong>Disparo automático</strong>. Os dois abrem o <strong>Montar disparo</strong>, onde você escolhe a mensagem: a abordagem do Command ou roteiros seus, com variáveis, anexos e teste A/B.`;
     const deOnde = noExtrator
       ? 'Ela segue os contatos que você marcou na prévia.'
       : 'Ela segue a lista que está na tela, com os filtros aplicados.';
@@ -1261,8 +1261,10 @@
      extensão resolve na hora de preencher, não na hora de montar a fila. */
   function prospectBridge(list) {
     const payload = {
-      version: 1,
+      version: 2,
       generatedAt: new Date().toISOString(),
+      // Quem assina: {{consultor}} e {{agencia}} nos roteiros da extensão.
+      sender: { consultor: state.data.settings?.ownerName || 'Arthur', agencia: state.data.settings?.company || 'Achilles Media' },
       prospects: (list||[]).map(p => ({
         id: p.id, name: p.name, category: p.category || '', address: p.address || '',
         phone: p.phone || '', whatsapp: p.whatsapp || '',
@@ -1272,6 +1274,10 @@
         country: p.country || 'BR', language: p.language || 'pt',
         longitude: Number.isFinite(Number(p.longitude)) ? Number(p.longitude) : null,
         score: p.score ?? null, recommendedService: p.recommendedService || '',
+        /* Variáveis dos roteiros da extensão: {{primeiro_nome}}, {{cidade}},
+           {{uf}}, {{nota}}, {{avaliacoes}}. */
+        contactFirstName: p.contactFirstName || '', city: p.city || '', state: p.state || '',
+        rating: Number(p.rating || 0), userRatingCount: Number(p.userRatingCount || 0),
         message: approachText(p),
         crmLeadId: p.crmLeadId || null,
         contactedAt: p.contactedAt || null
@@ -1291,6 +1297,16 @@
       logActivity('Abordagem enviada', `${p.name} foi abordado pela fila da extensão.`);
       saveData();
       if (state.route === 'prospecting') renderCurrentPage();
+    });
+    /* A extensão percebeu no WhatsApp Web que o lead respondeu. Só registra:
+       mexer na etapa do CRM continua sendo decisão de quem atende. */
+    document.addEventListener('achilles:replied', e => {
+      const { prospectId, script } = e.detail || {};
+      const p = findProspect(prospectId); if (!p || p.repliedAt) return;
+      p.repliedAt = new Date().toISOString();
+      upsertProspect(p);
+      logActivity('Lead respondeu', `${p.name} respondeu à abordagem${script ? ` (roteiro "${script}")` : ''}.`);
+      saveData();
     });
     document.addEventListener('achilles:add-crm', e => {
       const { prospectId } = e.detail || {};

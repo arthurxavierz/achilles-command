@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Estúdio de roteiros</title>
+  <link rel="icon" href="icons/icon48.png" />
+  <link rel="stylesheet" href="lib/ui.css" />
+  <link rel="stylesheet" href="studio.css" />
+</head>
+<body class="apx-root">
+  <header class="st-top">
+    <span class="apx-logo">A</span>
+    <div class="st-brand"><strong>Estúdio de roteiros</strong><small>Achilles Prospecta</small></div>
+    <nav class="st-tabs" role="tablist">
+      <button type="button" role="tab" data-tab="roteiros" class="on">Roteiros</button>
+      <button type="button" role="tab" data-tab="resultados">Resultados</button>
+      <button type="button" role="tab" data-tab="ajustes">Ajustes</button>
+    </nav>
+    <div class="st-top-actions">
+      <label class="apx-btn ghost sm" title="Importar biblioteca de outra pessoa">Importar<input type="file" id="import" accept="application/json,.json" hidden /></label>
+      <button type="button" class="apx-btn ghost sm" id="export" title="Baixar todos os roteiros, com anexos, num arquivo">Exportar</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Roteiros -->
+    <section class="st-pane on" data-pane="roteiros">
+      <aside class="st-side">
+        <button type="button" class="apx-btn primary st-new" id="new">+ Novo roteiro</button>
+        <div class="st-list" id="list"></div>
+        <div class="st-command-card">
+          <div class="apx-label">Sempre disponível</div>
+          <b>Abordagem do Command</b>
+          <p>A mensagem que o sistema monta para cada lead. Aparece no "Montar disparo" ao lado dos seus roteiros, então dá para testar o padrão contra um roteiro novo.</p>
+        </div>
+      </aside>
+      <div class="st-main" id="main"></div>
+    </section>
+
+    <!-- Resultados -->
+    <section class="st-pane" data-pane="resultados">
+      <div class="st-wrap">
+        <div class="st-row-head">
+          <div><h2>Placar dos roteiros</h2><p class="apx-hint">Respostas detectadas no WhatsApp Web, ligadas ao roteiro que cada lead recebeu.</p></div>
+          <div class="apx-seg" id="period">
+            <button type="button" data-days="7">7 dias</button>
+            <button type="button" data-days="30" class="on">30 dias</button>
+            <button type="button" data-days="0">Tudo</button>
+          </div>
+        </div>
+        <div class="st-kpis" id="kpis"></div>
+        <div id="verdict"></div>
+        <div class="st-card">
+          <div class="st-card-head"><span class="apx-label">Taxa de resposta por roteiro</span><span class="apx-hint">automáticas prováveis ficam fora da taxa</span></div>
+          <div id="bars" class="st-bars"></div>
+        </div>
+        <div class="st-card">
+          <div class="st-card-head">
+            <span class="apx-label">Envios recentes</span>
+            <div class="apx-row">
+              <select class="apx-select sm" id="logFilter"></select>
+              <button type="button" class="apx-btn ghost sm" id="csv">Baixar CSV</button>
+              <button type="button" class="apx-btn ghost sm danger" id="clearLog">Zerar placar</button>
+            </div>
+          </div>
+          <p class="apx-hint st-log-help">A detecção lê a lista de conversas do WhatsApp Web enquanto a aba está aberta. Errou? Clique no status para corrigir.</p>
+          <div id="log" class="st-log"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Ajustes -->
+    <section class="st-pane" data-pane="ajustes">
+      <div class="st-wrap st-narrow">
+        <div class="st-card">
+          <div class="apx-label">Quem assina</div>
+          <p class="apx-hint">Preenche <code>{{consultor}}</code> e <code>{{agencia}}</code>. Em branco, vale o que está nas configurações do Command. Útil quando outra pessoa usa a mesma conta do Command neste navegador.</p>
+          <div class="st-form">
+            <label><span>Seu nome</span><input class="apx-input" id="sConsultor" placeholder="Do Command" maxlength="40" /></label>
+            <label><span>Sua empresa</span><input class="apx-input" id="sAgencia" placeholder="Do Command" maxlength="60" /></label>
+          </div>
+          <button type="button" class="apx-btn primary sm" id="saveSender">Salvar</button>
+        </div>
+
+        <div class="st-card">
+          <div class="apx-label">Como escrever um roteiro</div>
+          <div class="st-help">
+            <div><code>{{saudacao}}</code><span>Bom dia, Boa tarde ou Boa noite no horário de quem recebe.</span></div>
+            <div><code>{Oi|Olá|E aí}</code><span>Variação: cada lead recebe uma das opções. Deixa as mensagens diferentes entre si, o que o WhatsApp vê com bons olhos em envio repetido.</span></div>
+            <div><code>{{primeiro_nome|tudo bem}}</code><span>Texto depois da barra entra quando o lead não tem o dado.</span></div>
+            <div><code>*negrito* _itálico_ ~riscado~</code><span>Formatação do próprio WhatsApp; a prévia mostra como chega.</span></div>
+          </div>
+          <div class="st-vars" id="vars"></div>
+        </div>
+
+        <div class="st-card">
+          <div class="apx-label">Armazenamento</div>
+          <p class="apx-hint" id="storage">…</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="apx-toast" id="toast"></div>
+
+  <script src="lib/shared.js"></script>
+  <script src="lib/roteiros.js"></script>
+  <script src="lib/ui.js"></script>
+  <script src="studio.js"></script>
+</body>
+</html>
