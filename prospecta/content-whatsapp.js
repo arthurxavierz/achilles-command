@@ -20,15 +20,24 @@
   const SEL = {
     msgInput: 'div[contenteditable="true"][data-tab="10"], footer div[contenteditable="true"], div[contenteditable="true"][role="textbox"]',
     sendBtn: 'footer button[aria-label="Enviar"], footer button[aria-label="Send"], footer button[data-tab="11"], span[data-icon="send"], span[data-icon="wds-ic-send-filled"]',
+    /* bolhas da conversa. Até 2026 o WhatsApp marcava com message-out e
+       message-in; em outubro de 2026 as classes viraram nomes embaralhados e
+       sobrou o data-testid. Saída é a bolha com ícone de status (enviada,
+       entregue, lida) ou com o rótulo "Você:"; recebida não tem nenhum dos
+       dois. As classes antigas continuam valendo se voltarem. */
+    bubble: '#main [data-testid="msg-container"]',
     outgoing: '#main div.message-out',
     incoming: '#main div.message-in',
+    caption: '[data-testid="media-caption-input-container"]',
     thread: '#main',
     header: '#main header',
     dialog: 'div[role="dialog"]',
     /* anexos: o envio tenta colar o arquivo, depois soltar o arquivo na
        conversa e, por último, o botão de anexar com o input escondido. */
     attachBtn: 'footer button[title="Anexar"], footer button[aria-label="Anexar"], footer div[title="Anexar"], footer button[title="Attach"], footer button[aria-label="Attach"], footer div[title="Attach"], footer span[data-icon="plus-rounded"], footer span[data-icon="plus"], footer span[data-icon="clip"], footer span[data-icon="attach-menu-plus"]',
-    mediaSend: 'div[role="button"][aria-label="Enviar"], div[role="button"][aria-label="Send"], button[aria-label="Enviar"], button[aria-label="Send"], span[data-icon="send"], span[data-icon="wds-ic-send-filled"]',
+    // o rótulo virou "Enviar 1 item selecionado", então vale o começo dele
+    mediaSend: '[role="button"][aria-label^="Enviar"], [role="button"][aria-label^="Send"], button[aria-label^="Enviar"], button[aria-label^="Send"], span[data-icon="send"], span[data-icon="wds-ic-send-filled"]',
+    sendIcon: /(^|-)send(-filled)?$/,
     /* lista de conversas, para perceber quem respondeu */
     chatRow: '#pane-side [role="listitem"], #pane-side [role="row"]',
     chatTitle: 'span[title]',
@@ -56,7 +65,21 @@
 
   /* --- leitura da tela --------------------------------------------------- */
   const urlPhone = () => (location.href.match(/[?&]phone=(\d+)/) || [])[1] || '';
-  const outgoingCount = () => document.querySelectorAll(SEL.outgoing).length;
+  const STATUS = /ic-delivered|ic-read|ic-sent|ic-pending|msg-check|msg-dblcheck|msg-time|status-/i;
+  function ehSaida(b) {
+    if (b.closest('.message-out')) return true;
+    if (b.closest('.message-in')) return false;
+    if ([...b.querySelectorAll('svg title')].some(t => STATUS.test(t.textContent || ''))) return true;
+    if ([...b.querySelectorAll('[data-icon]')].some(e => STATUS.test(e.getAttribute('data-icon') || ''))) return true;
+    return [...b.querySelectorAll('[aria-label]')].some(e => /^\s*(Você|You):\s*$/.test(e.getAttribute('aria-label') || ''));
+  }
+  function contarBolhas(saida) {
+    const bolhas = [...document.querySelectorAll(SEL.bubble)];
+    if (!bolhas.length) return document.querySelectorAll(saida ? SEL.outgoing : SEL.incoming).length;
+    return bolhas.filter(b => ehSaida(b) === saida).length;
+  }
+  const outgoingCount = () => contarBolhas(true);
+  const incomingCount = () => contarBolhas(false);
   const composeText = () => { const b = qs(SEL.msgInput); return b ? (b.innerText || '').trim() : ''; };
   /* Comparação do que está na caixa com o que preparamos. O editor do WhatsApp
      devolve quebras e espaços um pouco diferentes do texto original, então a
@@ -83,6 +106,20 @@
   function fillBox(box, text, read = () => (box ? (box.innerText || '').trim() : '')) {
     if (!box) return false;
     box.focus();
+    /* Colar primeiro. O editor atual do WhatsApp ignora o insertLineBreak (a
+       legenda saía com as linhas emendadas) e nem sempre apaga com o
+       selectAll; colando, ele troca a seleção inteira e mantém as quebras.
+       Conferido no WhatsApp Web em outubro de 2026. */
+    try {
+      const sel = window.getSelection();
+      const r = document.createRange();
+      r.selectNodeContents(box);
+      sel.removeAllRanges(); sel.addRange(r);
+      const dt = new DataTransfer();
+      dt.setData('text/plain', String(text));
+      box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true, composed: true }));
+      if (norm(read()) === norm(text)) return true;
+    } catch (e) { /* segue para o caminho antigo */ }
     try {
       document.execCommand('selectAll', false, null);
       document.execCommand('delete', false, null);
@@ -113,10 +150,14 @@
   const fora = (el) => !el.closest('footer') && !el.closest('#side') && !el.closest('#pane-side') && !el.closest('#ap-drawer') && !el.closest('#ap-dock-host');
 
   function previewSend() {
-    const cands = [...document.querySelectorAll(SEL.mediaSend)].map(el => el.closest('button, [role="button"]') || el);
+    const porIcone = [...document.querySelectorAll('svg title')].filter(t => SEL.sendIcon.test(t.textContent || ''))
+      .map(t => t.closest('button, [role="button"]')).filter(Boolean);
+    const cands = [...document.querySelectorAll(SEL.mediaSend), ...porIcone].map(el => el.closest('button, [role="button"]') || el);
     return cands.find(b => visivel(b) && fora(b)) || null;
   }
   function previewCaption() {
+    const cap = [...document.querySelectorAll(SEL.caption)].find(el => visivel(el));
+    if (cap) return cap;
     return [...document.querySelectorAll('div[contenteditable="true"]')].find(el => visivel(el) && fora(el)) || null;
   }
   async function waitFor(fn, ms) {
@@ -876,7 +917,7 @@
     const k = m ? AP.tail8(m[0]) : (chaves.has(AP.tail8(urlPhone())) ? AP.tail8(urlPhone()) : '');
     if (k && chaves.has(k)) {
       const s = sinais.get(k) || {};
-      s.incoming = document.querySelectorAll(SEL.incoming).length;
+      s.incoming = incomingCount();
       sinais.set(k, s);
     }
 

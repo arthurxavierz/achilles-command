@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Achilles Prospecta",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Fila de abordagem do Achilles Command dentro do WhatsApp Web, com estúdio de roteiros: variáveis, variações, anexos e teste A/B com placar de respostas.",
   "permissions": [
     "storage",
